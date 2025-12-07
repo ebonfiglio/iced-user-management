@@ -1,0 +1,9 @@
+[package]
+name = "iced-user-management"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced = { version = "0.13.1", features = ["highlighter"] }
+smol = "2.0"
+rfd = "0.16"
