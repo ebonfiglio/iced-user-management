@@ -1,13 +1,15 @@
 use iced::{
-    Element, Font, Length, Task, Theme,
+    Border, Color, Element,
+    Length::{self, Fill, FillPortion},
+    Task, Theme,
     widget::{Button, button, column, container, row, scrollable, text, text_input},
 };
 
 pub fn main() -> iced::Result {
-    iced::application("Iced Editor", UserManager::update, UserManager::view)
+    iced::application(UserManager::new, UserManager::update, UserManager::view)
         .theme(UserManager::theme)
-        .default_font(Font::MONOSPACE)
-        .run_with(UserManager::new)
+        .title("User Management")
+        .run()
 }
 
 #[derive(Default, Clone)]
@@ -122,7 +124,32 @@ impl UserManager {
         ))
         .height(Length::Fill);
 
-        container(column![input, save_btn, user_list].spacing(10))
+        let navigation = container(
+            column![
+                row![button(container("Users").center_x(30).center_y(30)).width(Length::Fill)],
+                row![
+                    button(container("Organizations").center_x(30).center_y(30))
+                        .width(Length::Fill)
+                ],
+                row![button(container("Jobs").center_x(30).center_y(30)).width(Length::Fill)],
+            ]
+            .spacing(10)
+            .height(Fill),
+        )
+        .padding(10)
+        .style(|_theme: &Theme| container::Style {
+            border: Border {
+                color: Color::from_rgb(0.5, 0.5, 0.5),
+                width: 1.0,
+                radius: 0.into(),
+            },
+            ..Default::default()
+        })
+        .width(FillPortion(1));
+        let user_form =
+            container(column![input, save_btn, user_list].spacing(10)).width(FillPortion(4));
+
+        container(row![navigation, user_form].spacing(10))
             .padding(10)
             .into()
     }
