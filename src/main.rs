@@ -279,7 +279,36 @@ impl AppState {
     }
 
     fn job_form(&self) -> Container<'_, Message> {
-        container(column![text("content")].spacing(10)).width(FillPortion(4))
+        let input = text_input("Job", &self.jobs.current.name).on_input(Message::NameChanged);
+
+        let header_row = row![
+            text("ID").width(Length::FillPortion(1)),
+            text("Name").width(Length::FillPortion(2)),
+            text("Action")
+        ];
+        let job_list = scrollable(self.jobs.list.iter().enumerate().fold(
+            column![header_row].spacing(2),
+            |col, (_, job)| {
+                col.push(
+                    row![
+                        text(job.id).width(Length::FillPortion(1)),
+                        text(&job.name).width(Length::FillPortion(2)),
+                        button("Edit")
+                            .style(button::primary)
+                            .on_press(Message::Load(job.id)),
+                        button("Delete")
+                            .style(button::danger)
+                            .on_press(Message::Delete(job.id)),
+                    ]
+                    .spacing(10)
+                    .padding(5),
+                )
+            },
+        ))
+        .height(Length::Fill);
+
+        container(column![input, self.get_form_buttons(self.jobs.is_edit), job_list].spacing(10))
+            .width(FillPortion(4))
     }
 
     fn organization_form(&self) -> Container<'_, Message> {
@@ -312,8 +341,15 @@ impl AppState {
         ))
         .height(Length::Fill);
 
-        container(column![input, self.get_form_buttons(), organization_list].spacing(10))
-            .width(FillPortion(4))
+        container(
+            column![
+                input,
+                self.get_form_buttons(self.organizations.is_edit),
+                organization_list
+            ]
+            .spacing(10),
+        )
+        .width(FillPortion(4))
     }
 
     fn user_form(&self) -> Container<'_, Message> {
@@ -344,12 +380,12 @@ impl AppState {
             },
         ))
         .height(Length::Fill);
-        container(column![input, self.get_form_buttons(), user_list].spacing(10))
+        container(column![input, self.get_form_buttons(self.users.is_edit), user_list].spacing(10))
             .width(FillPortion(4))
     }
 
-    fn get_form_buttons(&self) -> Row<'_, Message> {
-        if self.users.is_edit {
+    fn get_form_buttons(&self, is_edit: bool) -> Row<'_, Message> {
+        if is_edit {
             row![
                 button("Update").on_press(Message::Update),
                 button("Cancel")
