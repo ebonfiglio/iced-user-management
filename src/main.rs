@@ -2,7 +2,9 @@ use iced::{
     Border, Color, Element,
     Length::{self, Fill, FillPortion},
     Task, Theme,
-    widget::{Container, Row, button, column, container, row, scrollable, text, text_input},
+    widget::{
+        Container, Row, button, column, container, pick_list, row, scrollable, text, text_input,
+    },
 };
 
 pub fn main() -> iced::Result {
@@ -30,6 +32,14 @@ impl AppState {
             },
             Task::none(),
         )
+    }
+    fn get_job_name(&self, job_id: usize) -> String {
+        self.jobs
+            .list
+            .iter()
+            .find(|j| j.id == job_id)
+            .map(|j| j.name.clone())
+            .unwrap_or_else(|| "None".to_string())
     }
 }
 
@@ -106,14 +116,16 @@ impl<T: Entity> EntityManager<T> {
 struct User {
     id: usize,
     name: String,
+    job_id: usize,
+    organization_id: usize,
 }
 
 impl User {
-    fn new() -> User {
-        User {
-            id: 0,
-            name: String::new(),
-        }
+    fn set_job_id(&mut self, job_id: usize) {
+        self.job_id = job_id;
+    }
+    fn set_organization_id(&mut self, organization_id: usize) {
+        self.organization_id = organization_id;
     }
 }
 
@@ -153,10 +165,16 @@ impl Entity for Organization {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 struct Job {
     id: usize,
     name: String,
+}
+
+impl std::fmt::Display for Job {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 impl Entity for Job {
@@ -179,6 +197,7 @@ enum Message {
     Navigate(Page),
 
     NameChanged(String),
+    JobSelected(Job),
     Create,
     Update,
     Delete(usize),
@@ -212,6 +231,9 @@ impl AppState {
             }
             Message::NameChanged(name) => {
                 with_manager!(self, name_changed, name);
+            }
+            Message::JobSelected(job) => {
+                self.users.current.set_job_id(job.id);
             }
             Message::Create => {
                 with_manager!(self, create);
@@ -354,25 +376,39 @@ impl AppState {
 
     fn user_form(&self) -> Container<'_, Message> {
         let input = text_input("User", &self.users.current.name).on_input(Message::NameChanged);
-
+        let job_input = pick_list(
+            &self.jobs.list[..],
+            self.jobs
+                .list
+                .iter()
+                .find(|j| j.id == self.users.current.job_id),
+            Message::JobSelected,
+        );
         let header_row = row![
             text("ID").width(Length::FillPortion(1)),
             text("Name").width(Length::FillPortion(2)),
-            text("Action")
+            text("Job").width(Length::FillPortion(2)),
+            text("Action").width(Length::FillPortion(2)),
         ];
         let user_list = scrollable(self.users.list.iter().enumerate().fold(
             column![header_row].spacing(2),
             |col, (_, user)| {
+                let job_name = self.get_job_name(user.job_id);
                 col.push(
                     row![
                         text(user.id).width(Length::FillPortion(1)),
                         text(&user.name).width(Length::FillPortion(2)),
+                        button(text(job_name))
+                            .style(button::text)
+                            .width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::Load(user.id)),
+                            .on_press(Message::Load(user.id))
+                            .width(Length::FillPortion(1)),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::Delete(user.id)),
+                            .on_press(Message::Delete(user.id))
+                            .width(Length::FillPortion(1)),
                     ]
                     .spacing(10)
                     .padding(5),
@@ -380,8 +416,16 @@ impl AppState {
             },
         ))
         .height(Length::Fill);
-        container(column![input, self.get_form_buttons(self.users.is_edit), user_list].spacing(10))
-            .width(FillPortion(4))
+        container(
+            column![
+                input,
+                job_input,
+                self.get_form_buttons(self.users.is_edit),
+                user_list
+            ]
+            .spacing(10),
+        )
+        .width(FillPortion(4))
     }
 
     fn get_form_buttons(&self, is_edit: bool) -> Row<'_, Message> {
