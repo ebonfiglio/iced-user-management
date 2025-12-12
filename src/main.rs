@@ -41,6 +41,15 @@ impl AppState {
             .map(|j| j.name.clone())
             .unwrap_or_else(|| "None".to_string())
     }
+
+    fn get_organization_name(&self, organization_id: usize) -> String {
+        self.organizations
+            .list
+            .iter()
+            .find(|j| j.id == organization_id)
+            .map(|j| j.name.clone())
+            .unwrap_or_else(|| "None".to_string())
+    }
 }
 
 trait Entity: Clone + Default + std::fmt::Debug {
@@ -144,10 +153,16 @@ impl Entity for User {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 struct Organization {
     id: usize,
     name: String,
+}
+
+impl std::fmt::Display for Organization {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 impl Entity for Organization {
@@ -198,6 +213,9 @@ enum Message {
 
     NameChanged(String),
     JobSelected(Job),
+    OrganizationSelected(Organization),
+    JobClicked(usize),
+    OrganizationClicked(usize),
     Create,
     Update,
     Delete(usize),
@@ -234,6 +252,26 @@ impl AppState {
             }
             Message::JobSelected(job) => {
                 self.users.current.set_job_id(job.id);
+            }
+            Message::OrganizationSelected(organization) => {
+                self.users.current.set_organization_id(organization.id);
+            }
+            Message::JobClicked(job_id) => {
+                if let Some(job) = self.jobs.list.iter().find(|j| j.id == job_id) {
+                    self.current_page = Page::Job;
+                    self.jobs.current = job.clone();
+                }
+            }
+            Message::OrganizationClicked(organization_id) => {
+                if let Some(organization) = self
+                    .organizations
+                    .list
+                    .iter()
+                    .find(|j| j.id == organization_id)
+                {
+                    self.current_page = Page::Organization;
+                    self.organizations.current = organization.clone();
+                }
             }
             Message::Create => {
                 with_manager!(self, create);
@@ -384,22 +422,38 @@ impl AppState {
                 .find(|j| j.id == self.users.current.job_id),
             Message::JobSelected,
         );
+        let organization_input = pick_list(
+            &self.organizations.list[..],
+            self.organizations
+                .list
+                .iter()
+                .find(|k| k.id == self.users.current.organization_id),
+            Message::OrganizationSelected,
+        );
         let header_row = row![
             text("ID").width(Length::FillPortion(1)),
             text("Name").width(Length::FillPortion(2)),
             text("Job").width(Length::FillPortion(2)),
+            text("Organization").width(Length::FillPortion(2)),
             text("Action").width(Length::FillPortion(2)),
         ];
         let user_list = scrollable(self.users.list.iter().enumerate().fold(
             column![header_row].spacing(2),
             |col, (_, user)| {
                 let job_name = self.get_job_name(user.job_id);
+                let organization_name = self.get_organization_name(user.organization_id);
+
                 col.push(
                     row![
                         text(user.id).width(Length::FillPortion(1)),
                         text(&user.name).width(Length::FillPortion(2)),
                         button(text(job_name))
                             .style(button::text)
+                            .on_press(Message::JobClicked(user.job_id))
+                            .width(Length::FillPortion(2)),
+                        button(text(organization_name))
+                            .style(button::text)
+                            .on_press(Message::OrganizationClicked(user.organization_id))
                             .width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
@@ -420,6 +474,7 @@ impl AppState {
             column![
                 input,
                 job_input,
+                organization_input,
                 self.get_form_buttons(self.users.is_edit),
                 user_list
             ]
