@@ -19,6 +19,7 @@ struct AppState {
     users: EntityManager<User>,
     organizations: EntityManager<Organization>,
     jobs: EntityManager<Job>,
+    error_message: Option<String>,
 }
 
 impl AppState {
@@ -29,6 +30,7 @@ impl AppState {
                 users: EntityManager::new(),
                 organizations: EntityManager::new(),
                 jobs: EntityManager::new(),
+                error_message: None,
             },
             Task::none(),
         )
@@ -57,6 +59,10 @@ trait Entity: Clone + Default + std::fmt::Debug {
     fn set_id(&mut self, id: usize);
     fn name(&self) -> &str;
     fn set_name(&mut self, name: String);
+
+    fn validate(&self) -> Result<(), Vec<String>> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -75,7 +81,8 @@ impl<T: Entity> EntityManager<T> {
         }
     }
 
-    fn create(&mut self) -> Result<(), String> {
+    fn create(&mut self) -> Result<(), Vec<String>> {
+        self.current.validate()?;
         self.current.set_id(self.list.len() + 1);
         self.list.push(std::mem::take(&mut self.current));
         self.is_edit = false;
@@ -150,6 +157,31 @@ impl Entity for User {
     }
     fn set_name(&mut self, name: String) {
         self.name = name;
+    }
+    fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+
+        if self.name.trim().is_empty() {
+            errors.push("Name cannot be empty".to_string());
+        } else if self.name.len() < 3 {
+            errors.push("Name must be at least 3 characters".to_string());
+        } else if self.name.len() > 50 {
+            errors.push("Name must be at most 50 characters".to_string());
+        }
+
+        if self.job_id == 0 {
+            errors.push("Please select a job".to_string());
+        }
+
+        if self.organization_id == 0 {
+            errors.push("Please select an organization".to_string());
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 }
 
@@ -244,6 +276,7 @@ impl AppState {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Navigate(page) => {
+                self.error_message = None;
                 self.current_page = page;
                 with_manager!(self, cancel_edit);
             }
@@ -273,9 +306,14 @@ impl AppState {
                     self.organizations.current = organization.clone();
                 }
             }
-            Message::Create => {
-                with_manager!(self, create);
-            }
+            Message::Create => match with_manager!(self, create) {
+                Ok(()) => {
+                    self.error_message = None;
+                }
+                Err(errors) => {
+                    self.error_message = Some(errors.join(", ")); // Join multiple errors
+                }
+            },
             Message::Update => {
                 with_manager!(self, update);
             }
@@ -287,6 +325,7 @@ impl AppState {
             }
             Message::CancelEdit => {
                 with_manager!(self, cancel_edit);
+                self.error_message = None;
             }
         }
         Task::none()
@@ -325,7 +364,12 @@ impl AppState {
         })
         .width(FillPortion(1));
 
-        container(row![navigation, self.entity_form()].spacing(10))
+        let errors = match &self.error_message {
+            Some(error) => text(error),
+            None => text(""),
+        };
+
+        container(column![row![errors], row![navigation, self.entity_form()]].spacing(10))
             .padding(10)
             .into()
     }
