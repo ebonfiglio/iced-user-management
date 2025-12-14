@@ -1,9 +1,12 @@
+use std::collections::HashMap;
+
 use super::Entity;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct Job {
     id: usize,
     name: String,
+    errors: HashMap<&'static str, &'static str>,
 }
 
 impl Job {
@@ -29,20 +32,8 @@ impl Entity for Job {
         self.name = name;
     }
 
-    fn validate(&self) -> Result<(), Vec<String>> {
-        let mut errors = Vec::new();
-
-        if self.name.trim().is_empty() {
-            errors.push("Job title is required".to_string());
-        } else if self.name.len() < 2 {
-            errors.push("Job title must be at least 2 characters".to_string());
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
+    fn errors(&self) -> &HashMap<&'static str, &'static str> {
+        &self.errors
     }
 }
 

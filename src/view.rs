@@ -131,34 +131,56 @@ impl AppState {
     }
 
     fn user_form(&self) -> Container<'_, Message> {
-        let validation = self.users.current.validate_all_fields();
-        let input = column![
-            text("Name: "),
+        let name_input = column![
             text_input("User", &self.users.current.name()).on_input(Message::NameChanged),
-            if let Some(error) = validation.name_error {
-                text(error).size(12).style(|_theme| text::Style {
-                    color: Some(Color::from_rgb(0.8, 0.2, 0.2)),
-                })
+            if let Some(error) = self.users.current.errors().get("name") {
+                text(error.to_string())
+                    .size(12)
+                    .style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.8, 0.2, 0.2)),
+                    })
             } else {
                 text("").height(0)
             }
         ];
-        let job_input = pick_list(
-            &self.jobs.list[..],
-            self.jobs
-                .list
-                .iter()
-                .find(|j| j.id() == self.users.current.job_id()),
-            Message::JobSelected,
-        );
-        let organization_input = pick_list(
-            &self.organizations.list[..],
-            self.organizations
-                .list
-                .iter()
-                .find(|k| k.id() == self.users.current.organization_id()),
-            Message::OrganizationSelected,
-        );
+        let job_input = column![
+            pick_list(
+                &self.jobs.list[..],
+                self.jobs
+                    .list
+                    .iter()
+                    .find(|j| j.id() == self.users.current.job_id()),
+                Message::JobSelected,
+            ),
+            if let Some(error) = self.users.current.errors().get("job_id") {
+                text(error.to_string())
+                    .size(12)
+                    .style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.8, 0.2, 0.2)),
+                    })
+            } else {
+                text("").height(0)
+            }
+        ];
+        let organization_input = column![
+            pick_list(
+                &self.organizations.list[..],
+                self.organizations
+                    .list
+                    .iter()
+                    .find(|k| k.id() == self.users.current.organization_id()),
+                Message::OrganizationSelected,
+            ),
+            if let Some(error) = self.users.current.errors().get("organization_id") {
+                text(error.to_string())
+                    .size(12)
+                    .style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.8, 0.2, 0.2)),
+                    })
+            } else {
+                text("").height(0)
+            }
+        ];
         let header_row = row![
             text("ID").width(Length::FillPortion(1)),
             text("Name").width(Length::FillPortion(2)),
@@ -201,7 +223,7 @@ impl AppState {
         .height(Length::Fill);
         container(
             column![
-                input,
+                name_input,
                 job_input,
                 organization_input,
                 self.get_form_buttons(self.users.is_edit),

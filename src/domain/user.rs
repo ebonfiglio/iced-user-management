@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::Entity;
 
 #[derive(Debug, Default, Clone)]
@@ -6,6 +8,7 @@ pub struct User {
     name: String,
     job_id: usize,
     organization_id: usize,
+    errors: HashMap<&'static str, &'static str>,
 }
 
 impl User {
@@ -28,42 +31,6 @@ impl User {
     pub fn organization_id(&self) -> usize {
         self.organization_id
     }
-
-    pub fn validate_name_field(name: &str) -> Option<String> {
-        if name.trim().is_empty() {
-            Some("Name is required".to_string())
-        } else if name.len() < 3 {
-            Some("Name must be at least 3 characters".to_string())
-        } else if name.len() > 50 {
-            Some("Name cannot exceed 50 characters".to_string())
-        } else {
-            None
-        }
-    }
-
-    pub fn validate_job_field(job_id: usize) -> Option<String> {
-        if job_id == 0 {
-            Some("Job selection is required".to_string())
-        } else {
-            None
-        }
-    }
-
-    pub fn validate_organization_field(organization_id: usize) -> Option<String> {
-        if organization_id == 0 {
-            Some("Organization selection is required".to_string())
-        } else {
-            None
-        }
-    }
-
-    pub fn validate_all_fields(&self) -> UserValidation {
-        UserValidation {
-            name_error: Self::validate_name_field(&self.name),
-            job_error: Self::validate_job_field(self.job_id),
-            organization_error: Self::validate_organization_field(self.organization_id),
-        }
-    }
 }
 
 impl Entity for User {
@@ -83,46 +50,58 @@ impl Entity for User {
         self.name = name;
     }
 
-    fn validate(&self) -> Result<(), Vec<String>> {
-        let validation = self.validate_all_fields();
-
-        if validation.has_errors() {
-            Err(validation.get_all_errors())
-        } else {
-            Ok(())
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct UserValidation {
-    pub name_error: Option<String>,
-    pub job_error: Option<String>,
-    pub organization_error: Option<String>,
-}
-
-impl UserValidation {
-    pub fn clear(&mut self) {
-        self.name_error = None;
-        self.job_error = None;
-        self.organization_error = None;
+    fn errors(&self) -> &HashMap<&'static str, &'static str> {
+        &self.errors
     }
 
-    pub fn has_errors(&self) -> bool {
-        self.name_error.is_some() || self.job_error.is_some() || self.organization_error.is_some()
+    fn validate(&mut self) {
+        self.errors.clear();
+        if self.name.trim().is_empty() {
+            self.errors.insert("name", "Name is required");
+        } else if self.name.len() < 3 {
+            self.errors
+                .insert("name", "Name must be at least 3 characters");
+        } else if self.name.len() > 50 {
+            self.errors
+                .insert("name", "Name must be under 50 characters");
+        }
+
+        if self.job_id == 0 {
+            self.errors.insert("job_id", "Job selection is required");
+        }
+
+        if self.organization_id == 0 {
+            self.errors
+                .insert("organization_id", "Organization selection is required");
+        }
     }
 
-    pub fn get_all_errors(&self) -> Vec<String> {
-        let mut errors = Vec::new();
-        if let Some(e) = &self.name_error {
-            errors.push(e.clone());
+    fn validate_property(&mut self, propery: &str) {
+        match propery {
+            "name" => {
+                self.errors.remove("name");
+                if self.name.trim().is_empty() {
+                    self.errors.insert("name", "Name is required");
+                } else if self.name.len() < 3 {
+                    self.errors
+                        .insert("name", "Name must be at least 3 characters");
+                } else if self.name.len() > 50 {
+                    self.errors
+                        .insert("name", "Name must be under 50 characters");
+                }
+            }
+            "job_id" => {
+                if self.job_id == 0 {
+                    self.errors.insert("job_id", "Job selection is required");
+                }
+            }
+            "organization_id" => {
+                if self.organization_id == 0 {
+                    self.errors
+                        .insert("organization_id", "Organization selection is required");
+                }
+            }
+            _ => {}
         }
-        if let Some(e) = &self.job_error {
-            errors.push(e.clone());
-        }
-        if let Some(e) = &self.organization_error {
-            errors.push(e.clone());
-        }
-        errors
     }
 }

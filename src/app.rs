@@ -1,4 +1,4 @@
-use iced::{Task, Theme};
+use iced::Task;
 
 use crate::domain::{Entity, Job, Organization, User};
 use crate::infrastructure::EntityManager;
@@ -9,7 +9,6 @@ pub struct AppState {
     pub users: EntityManager<User>,
     pub organizations: EntityManager<Organization>,
     pub jobs: EntityManager<Job>,
-    pub error_message: Option<String>,
 }
 
 impl AppState {
@@ -20,7 +19,6 @@ impl AppState {
                 users: EntityManager::new(),
                 organizations: EntityManager::new(),
                 jobs: EntityManager::new(),
-                error_message: None,
             },
             Task::none(),
         )
@@ -29,7 +27,6 @@ impl AppState {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Navigate(page) => {
-                self.error_message = None;
                 self.current_page = page;
                 with_manager!(self, cancel_edit);
             }
@@ -59,14 +56,9 @@ impl AppState {
                     self.organizations.current = organization.clone();
                 }
             }
-            Message::Create => match with_manager!(self, create) {
-                Ok(()) => {
-                    self.error_message = None;
-                }
-                Err(errors) => {
-                    self.error_message = Some(errors.join(", ")); // Join multiple errors
-                }
-            },
+            Message::Create => {
+                with_manager!(self, create);
+            }
             Message::Update => {
                 with_manager!(self, update);
             }
@@ -78,7 +70,6 @@ impl AppState {
             }
             Message::CancelEdit => {
                 with_manager!(self, cancel_edit);
-                self.error_message = None;
             }
         }
         Task::none()
@@ -103,7 +94,6 @@ impl AppState {
     }
 }
 
-// Keep your with_manager macro here
 macro_rules! with_manager {
     ($self:expr, $method:ident $(, $arg:expr)*) => {
         match $self.current_page {
@@ -114,5 +104,4 @@ macro_rules! with_manager {
     };
 }
 
-// Make macro available to the module
 pub(crate) use with_manager;

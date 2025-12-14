@@ -1,9 +1,12 @@
+use std::collections::HashMap;
+
 use super::Entity;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct Organization {
     id: usize,
     name: String,
+    errors: HashMap<&'static str, &'static str>,
 }
 
 impl Organization {
@@ -29,20 +32,8 @@ impl Entity for Organization {
         self.name = name;
     }
 
-    fn validate(&self) -> Result<(), Vec<String>> {
-        let mut errors = Vec::new();
-
-        if self.name.trim().is_empty() {
-            errors.push("Organization name is required".to_string());
-        } else if self.name.len() < 2 {
-            errors.push("Organization name must be at least 2 characters".to_string());
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
+    fn errors(&self) -> &HashMap<&'static str, &'static str> {
+        &self.errors
     }
 }
 
