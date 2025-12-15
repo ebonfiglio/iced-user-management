@@ -17,6 +17,7 @@ impl<T: Entity> EntityManager<T> {
     }
 
     pub fn create(&mut self) -> Result<(), ()> {
+        self.current.validate();
         self.current.set_id(self.list.len() + 1);
         self.list.push(std::mem::take(&mut self.current));
         self.is_edit = false;
@@ -24,6 +25,7 @@ impl<T: Entity> EntityManager<T> {
     }
 
     pub fn update(&mut self) -> Result<(), ()> {
+        self.current.validate();
         if let Some(index) = self.list.iter().position(|e| e.id() == self.current.id()) {
             self.list[index] = std::mem::take(&mut self.current);
             self.is_edit = false;
@@ -60,5 +62,6 @@ impl<T: Entity> EntityManager<T> {
     pub fn cancel_edit(&mut self) {
         self.current = T::default();
         self.is_edit = false;
+        self.current.clear_errors();
     }
 }

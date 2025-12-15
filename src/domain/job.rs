@@ -35,6 +35,40 @@ impl Entity for Job {
     fn errors(&self) -> &HashMap<&'static str, &'static str> {
         &self.errors
     }
+
+    fn validate(&mut self) {
+        self.errors.clear();
+        if self.name.trim().is_empty() {
+            self.errors.insert("name", "Name is required");
+        } else if self.name.len() < 3 {
+            self.errors
+                .insert("name", "Name must be at least 3 characters");
+        } else if self.name.len() > 50 {
+            self.errors
+                .insert("name", "Name must be under 50 characters");
+        }
+    }
+
+    fn validate_property(&mut self, propery: &str) {
+        match propery {
+            "name" => {
+                self.errors.remove("name");
+                if self.name.trim().is_empty() {
+                    self.errors.insert("name", "Name is required");
+                } else if self.name.len() < 3 {
+                    self.errors
+                        .insert("name", "Name must be at least 3 characters");
+                } else if self.name.len() > 50 {
+                    self.errors
+                        .insert("name", "Name must be under 50 characters");
+                }
+            }
+            _ => {}
+        }
+    }
+    fn clear_errors(&mut self) {
+        self.errors.clear();
+    }
 }
 
 impl std::fmt::Display for Job {

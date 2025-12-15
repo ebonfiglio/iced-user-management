@@ -43,7 +43,7 @@ impl AppState {
         })
         .width(FillPortion(1));
 
-        container(column![row![navigation, self.entity_form()]].spacing(10))
+        container(column![row![navigation, self.entity_form()].spacing(10)].spacing(10))
             .padding(10)
             .into()
     }
@@ -57,8 +57,18 @@ impl AppState {
     }
 
     fn job_form(&self) -> Container<'_, Message> {
-        let input = text_input("Job", &self.jobs.current.name()).on_input(Message::NameChanged);
-
+        let name_input = column![
+            text_input("Job", &self.jobs.current.name()).on_input(Message::NameChanged),
+            if let Some(error) = self.jobs.current.errors().get("name") {
+                text(error.to_string())
+                    .size(12)
+                    .style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.8, 0.2, 0.2)),
+                    })
+            } else {
+                text("").height(0)
+            }
+        ];
         let header_row = row![
             text("ID").width(Length::FillPortion(1)),
             text("Name").width(Length::FillPortion(2)),
@@ -85,14 +95,31 @@ impl AppState {
         ))
         .height(Length::Fill);
 
-        container(column![input, self.get_form_buttons(self.jobs.is_edit), job_list].spacing(10))
-            .width(FillPortion(4))
+        container(
+            column![
+                name_input,
+                self.get_form_buttons(self.jobs.is_edit),
+                job_list
+            ]
+            .spacing(10),
+        )
+        .width(FillPortion(4))
     }
 
     fn organization_form(&self) -> Container<'_, Message> {
-        let input = text_input("Organization", &self.organizations.current.name())
-            .on_input(Message::NameChanged);
-
+        let name_input = column![
+            text_input("Organization", &self.organizations.current.name())
+                .on_input(Message::NameChanged),
+            if let Some(error) = self.organizations.current.errors().get("name") {
+                text(error.to_string())
+                    .size(12)
+                    .style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.8, 0.2, 0.2)),
+                    })
+            } else {
+                text("").height(0)
+            }
+        ];
         let header_row = row![
             text("ID").width(Length::FillPortion(1)),
             text("Name").width(Length::FillPortion(2)),
@@ -121,7 +148,7 @@ impl AppState {
 
         container(
             column![
-                input,
+                name_input,
                 self.get_form_buttons(self.organizations.is_edit),
                 organization_list
             ]

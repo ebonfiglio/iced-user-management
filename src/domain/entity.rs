@@ -6,6 +6,7 @@ pub trait Entity: Clone + Default + std::fmt::Debug {
     fn name(&self) -> &str;
     fn set_name(&mut self, name: String);
     fn errors(&self) -> &HashMap<&'static str, &'static str>;
-    fn validate(&mut self) {}
-    fn validate_property(&mut self, propery: &str) {}
+    fn validate(&mut self);
+    fn validate_property(&mut self, propery: &str);
+    fn clear_errors(&mut self);
 }

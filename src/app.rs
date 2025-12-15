@@ -35,9 +35,11 @@ impl AppState {
             }
             Message::JobSelected(job) => {
                 self.users.current.set_job_id(job.id());
+                self.users.current.validate_property("job_id");
             }
             Message::OrganizationSelected(organization) => {
                 self.users.current.set_organization_id(organization.id());
+                self.users.current.validate_property("organization_id");
             }
             Message::JobClicked(job_id) => {
                 if let Some(job) = self.jobs.list.iter().find(|j| j.id() == job_id) {
