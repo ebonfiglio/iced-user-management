@@ -54,7 +54,7 @@ impl Entity for User {
         &self.errors
     }
 
-    fn validate(&mut self) {
+    fn validate(&mut self) -> Result<(), &HashMap<&'static str, &'static str>> {
         self.errors.clear();
         if self.name.trim().is_empty() {
             self.errors.insert("name", "Name is required");
@@ -73,6 +73,12 @@ impl Entity for User {
         if self.organization_id == 0 {
             self.errors
                 .insert("organization_id", "Organization selection is required");
+        }
+
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(&self.errors)
         }
     }
 

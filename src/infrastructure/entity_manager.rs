@@ -17,21 +17,29 @@ impl<T: Entity> EntityManager<T> {
     }
 
     pub fn create(&mut self) -> Result<(), ()> {
-        self.current.validate();
-        self.current.set_id(self.list.len() + 1);
-        self.list.push(std::mem::take(&mut self.current));
-        self.is_edit = false;
-        Ok(())
+        match self.current.validate() {
+            Ok(()) => {
+                self.current.set_id(self.list.len() + 1);
+                self.list.push(std::mem::take(&mut self.current));
+                self.is_edit = false;
+                Ok(())
+            }
+            Err(errors) => Err(()),
+        }
     }
 
     pub fn update(&mut self) -> Result<(), ()> {
-        self.current.validate();
-        if let Some(index) = self.list.iter().position(|e| e.id() == self.current.id()) {
-            self.list[index] = std::mem::take(&mut self.current);
-            self.is_edit = false;
-            Ok(())
-        } else {
-            Err(())
+        match self.current.validate() {
+            Ok(()) => {
+                if let Some(index) = self.list.iter().position(|e| e.id() == self.current.id()) {
+                    self.list[index] = std::mem::take(&mut self.current);
+                    self.is_edit = false;
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+            Err(errors) => Err(()),
         }
     }
 

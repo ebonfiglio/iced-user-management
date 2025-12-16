@@ -36,7 +36,7 @@ impl Entity for Job {
         &self.errors
     }
 
-    fn validate(&mut self) {
+    fn validate(&mut self) -> Result<(), &HashMap<&'static str, &'static str>> {
         self.errors.clear();
         if self.name.trim().is_empty() {
             self.errors.insert("name", "Name is required");
@@ -46,6 +46,12 @@ impl Entity for Job {
         } else if self.name.len() > 50 {
             self.errors
                 .insert("name", "Name must be under 50 characters");
+        }
+
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(&self.errors)
         }
     }
 
