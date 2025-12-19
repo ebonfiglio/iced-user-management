@@ -1,4 +1,4 @@
-use iced::Task;
+use iced::{Task, Theme};
 
 use crate::domain::{Entity, Job, Organization, User};
 use crate::infrastructure::EntityManager;
@@ -9,6 +9,7 @@ pub struct AppState {
     pub users: EntityManager<User>,
     pub organizations: EntityManager<Organization>,
     pub jobs: EntityManager<Job>,
+    pub theme: Theme,
 }
 
 impl AppState {
@@ -19,6 +20,7 @@ impl AppState {
                 users: EntityManager::new(),
                 organizations: EntityManager::new(),
                 jobs: EntityManager::new(),
+                theme: Theme::Dark,
             },
             Task::none(),
         )
@@ -73,6 +75,9 @@ impl AppState {
             Message::CancelEdit => {
                 with_manager!(self, cancel_edit);
             }
+            Message::ThemeChanged(theme) => {
+                self.theme = theme;
+            }
         }
         Task::none()
     }
@@ -99,9 +104,10 @@ impl AppState {
 macro_rules! with_manager {
     ($self:expr, $method:ident $(, $arg:expr)*) => {
         match $self.current_page {
-            Page::User => $self.users.$method($($arg),*),
-            Page::Organization => $self.organizations.$method($($arg),*),
-            Page::Job => $self.jobs.$method($($arg),*),
+            Page::User => { let _ = $self.users.$method($($arg),*); }
+            Page::Organization => { let _ = $self.organizations.$method($($arg),*); }
+            Page::Job => { let _ = $self.jobs.$method($($arg),*); }
+            Page::Settings => {}
         }
     };
 }

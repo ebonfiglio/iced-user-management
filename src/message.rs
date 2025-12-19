@@ -1,3 +1,5 @@
+use iced::Theme;
+
 use crate::domain::{Job, Organization};
 
 #[derive(Debug, Clone)]
@@ -13,6 +15,7 @@ pub enum Message {
     Delete(usize),
     Load(usize),
     CancelEdit,
+    ThemeChanged(Theme),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -20,4 +23,5 @@ pub enum Page {
     User,
     Organization,
     Job,
+    Settings,
 }

@@ -9,7 +9,7 @@ use message::Message;
 
 pub fn main() -> iced::Result {
     iced::application(AppState::new, AppState::update, AppState::view)
-        .theme(AppState::theme)
+        .theme(|state: &AppState| state.theme.clone())
         .title("User Management")
         .run()
 }

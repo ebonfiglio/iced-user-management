@@ -1,7 +1,8 @@
 use iced::{
     Border, Color, Element, Fill, FillPortion, Length, Theme,
     widget::{
-        Container, Row, button, column, container, pick_list, row, scrollable, text, text_input,
+        Container, Row, button, column, container, pick_list, row, scrollable, space::horizontal,
+        text, text_input,
     },
 };
 
@@ -28,6 +29,11 @@ impl AppState {
                         .width(Length::Fill)
                         .on_press(Message::Navigate(Page::Job))
                 ],
+                row![
+                    button(container("Settings").center_x(30).center_y(30))
+                        .width(Length::Fill)
+                        .on_press(Message::Navigate(Page::Settings))
+                ],
             ]
             .spacing(10)
             .height(Fill),
@@ -43,16 +49,17 @@ impl AppState {
         })
         .width(FillPortion(1));
 
-        container(column![row![navigation, self.entity_form()].spacing(10)].spacing(10))
+        container(column![row![navigation, self.current_page()].spacing(10)].spacing(10))
             .padding(10)
             .into()
     }
 
-    fn entity_form(&self) -> Container<'_, Message> {
+    fn current_page(&self) -> Container<'_, Message> {
         match self.current_page {
             Page::Organization => self.organization_form(),
             Page::User => self.user_form(),
             Page::Job => self.job_form(),
+            Page::Settings => self.settings_form(),
         }
     }
 
@@ -275,7 +282,9 @@ impl AppState {
         }
     }
 
-    pub fn theme(&self) -> Theme {
-        Theme::Dark
+    fn settings_form(&self) -> Container<'_, Message> {
+        let theme_input =
+            pick_list(Theme::ALL, Some(&self.theme), Message::ThemeChanged).width(220);
+        container(column![theme_input]).width(FillPortion(4))
     }
 }
