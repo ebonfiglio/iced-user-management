@@ -1,9 +1,8 @@
 use iced::{
-    Border, Color, Element, Fill, FillPortion, Length, Theme,
     widget::{
-        Container, Row, button, column, container, pick_list, row, scrollable, space::horizontal,
-        text, text_input,
+        button, column, container, pick_list, row, scrollable, text, text_input, Container, Row,
     },
+    Border, Color, Element, Fill, FillPortion, Length, Theme,
 };
 
 use crate::app::AppState;
@@ -14,26 +13,18 @@ impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
         let navigation = container(
             column![
-                row![
-                    button(container("Users").center_x(30).center_y(30))
-                        .width(Length::Fill)
-                        .on_press(Message::Navigate(Page::User))
-                ],
-                row![
-                    button(container("Organizations").center_x(30).center_y(30))
-                        .width(Length::Fill)
-                        .on_press(Message::Navigate(Page::Organization))
-                ],
-                row![
-                    button(container("Jobs").center_x(30).center_y(30))
-                        .width(Length::Fill)
-                        .on_press(Message::Navigate(Page::Job))
-                ],
-                row![
-                    button(container("Settings").center_x(30).center_y(30))
-                        .width(Length::Fill)
-                        .on_press(Message::Navigate(Page::Settings))
-                ],
+                row![button(container("Users").center_x(30).center_y(30))
+                    .width(Length::Fill)
+                    .on_press(Message::Navigate(Page::User))],
+                row![button(container("Organizations").center_x(30).center_y(30))
+                    .width(Length::Fill)
+                    .on_press(Message::Navigate(Page::Organization))],
+                row![button(container("Jobs").center_x(30).center_y(30))
+                    .width(Length::Fill)
+                    .on_press(Message::Navigate(Page::Job))],
+                row![button(container("Settings").center_x(30).center_y(30))
+                    .width(Length::Fill)
+                    .on_press(Message::Navigate(Page::Settings))],
             ]
             .spacing(10)
             .height(Fill),
@@ -49,9 +40,23 @@ impl AppState {
         })
         .width(FillPortion(1));
 
-        container(column![row![navigation, self.current_page()].spacing(10)].spacing(10))
-            .padding(10)
-            .into()
+        let status_bar = container(text(&self.status_message).size(12))
+            .padding(5)
+            .width(Length::Fill)
+            .style(|_theme: &Theme| container::Style {
+                background: Some(Color::from_rgb(0.2, 0.2, 0.3).into()),
+                ..container::Style::default()
+            });
+
+        container(
+            column![
+                row![navigation, self.current_page()].spacing(10),
+                row![status_bar]
+            ]
+            .spacing(10),
+        )
+        .padding(10)
+        .into()
     }
 
     fn current_page(&self) -> Container<'_, Message> {

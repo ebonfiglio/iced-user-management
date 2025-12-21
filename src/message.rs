@@ -1,6 +1,6 @@
-use iced::Theme;
-
 use crate::domain::{Job, Organization};
+use iced::Theme;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -16,6 +16,8 @@ pub enum Message {
     Load(usize),
     CancelEdit,
     ThemeChanged(Theme),
+    DatabaseInitialized(SqlitePool),
+    DatabaseError(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

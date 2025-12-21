@@ -3,6 +3,7 @@ mod job;
 mod organization;
 mod user;
 
+pub use entity::DomainEntity;
 pub use entity::Entity;
 pub use job::Job;
 pub use organization::Organization;

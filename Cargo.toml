@@ -1,9 +1,16 @@
 [package]
 name = "iced-user-management"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 iced = { version = "0.14.0", features = ["highlighter"] }
 smol = "2.0"
 rfd = "0.16"
+
+# Database dependencies
+sqlx = { version = "0.7", features = ["runtime-async-std-native-tls", "sqlite", "migrate"] }
+async-trait = "0.1"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5.0"
