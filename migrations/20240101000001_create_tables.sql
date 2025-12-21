@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS organizations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    job_id INTEGER NOT NULL,
+    organization_id INTEGER NOT NULL,
+    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE RESTRICT,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_job_id ON users(job_id);
+CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
