@@ -43,18 +43,25 @@ impl AppState {
         let status_bar = container(text(&self.status_message).size(12))
             .padding(5)
             .width(Length::Fill)
-            .style(|_theme: &Theme| container::Style {
-                background: Some(Color::from_rgb(0.2, 0.2, 0.3).into()),
-                ..container::Style::default()
+            .style(|theme: &Theme| container::Style {
+                text_color: Some(
+                    if self.status_message.contains("error")
+                        || self.status_message.contains("Error")
+                    {
+                        theme.palette().danger
+                    } else if self.status_message.contains("connected") {
+                        theme.palette().success
+                    } else {
+                        theme.palette().text
+                    },
+                ),
+                ..Default::default()
             });
 
-        container(
-            column![
-                row![navigation, self.current_page()].spacing(10),
-                row![status_bar]
-            ]
-            .spacing(10),
-        )
+        container(column![
+            row![navigation, self.current_page()].spacing(10),
+            row![status_bar]
+        ])
         .padding(10)
         .into()
     }

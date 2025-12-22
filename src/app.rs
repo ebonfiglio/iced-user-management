@@ -1,7 +1,7 @@
 use iced::{Task, Theme};
 
 use crate::domain::{DomainEntity, Entity, Job, Organization, User};
-use crate::infrastructure::{Database, EntityManager, get_database_path};
+use crate::infrastructure::{get_database_path, Database, EntityManager};
 use crate::message::{Message, Page};
 use sqlx::SqlitePool;
 
@@ -98,7 +98,7 @@ impl AppState {
             }
             Message::DatabaseInitialized(db_pool) => {
                 self.db_pool = Some(db_pool);
-                self.status_message = "Database connected successfully".to_string();
+                self.status_message = "Database connected".to_string();
             }
             Message::DatabaseError(err) => {
                 self.status_message = format!("Database error: {}", err);
