@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 pub trait Entity: Clone + Default + std::fmt::Debug {
-    fn id(&self) -> usize;
-    fn set_id(&mut self, id: usize);
+    fn id(&self) -> i64;
+    fn set_id(&mut self, id: i64);
     fn name(&self) -> &str;
     fn set_name(&mut self, name: String);
     fn errors(&self) -> &HashMap<&'static str, &'static str>;

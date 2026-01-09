@@ -1,5 +1,6 @@
 mod database;
-mod entity_manager;
+mod entity_state;
 
-pub use database::{Database, get_database_path};
-pub use entity_manager::EntityManager;
+pub use database::{get_database_path, Database};
+pub use entity_state::EntityState;
+pub mod user_repository;

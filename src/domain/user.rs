@@ -4,10 +4,10 @@ use super::Entity;
 
 #[derive(Debug, Default, Clone)]
 pub struct User {
-    id: usize,
+    id: i64,
     name: String,
-    job_id: usize,
-    organization_id: usize,
+    job_id: i64,
+    organization_id: i64,
     errors: HashMap<&'static str, &'static str>,
 }
 
@@ -16,29 +16,29 @@ impl User {
         Self::default()
     }
 
-    pub fn set_job_id(&mut self, job_id: usize) {
+    pub fn set_job_id(&mut self, job_id: i64) {
         self.job_id = job_id;
     }
 
-    pub fn set_organization_id(&mut self, organization_id: usize) {
+    pub fn set_organization_id(&mut self, organization_id: i64) {
         self.organization_id = organization_id;
     }
 
-    pub fn job_id(&self) -> usize {
+    pub fn job_id(&self) -> i64 {
         self.job_id
     }
 
-    pub fn organization_id(&self) -> usize {
+    pub fn organization_id(&self) -> i64 {
         self.organization_id
     }
 }
 
 impl Entity for User {
-    fn id(&self) -> usize {
+    fn id(&self) -> i64 {
         self.id
     }
 
-    fn set_id(&mut self, id: usize) {
+    fn set_id(&mut self, id: i64) {
         self.id = id;
     }
 

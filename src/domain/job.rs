@@ -4,7 +4,7 @@ use super::Entity;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct Job {
-    id: usize,
+    id: i64,
     name: String,
     errors: HashMap<&'static str, &'static str>,
 }
@@ -16,11 +16,11 @@ impl Job {
 }
 
 impl Entity for Job {
-    fn id(&self) -> usize {
+    fn id(&self) -> i64 {
         self.id
     }
 
-    fn set_id(&mut self, id: usize) {
+    fn set_id(&mut self, id: i64) {
         self.id = id;
     }
 

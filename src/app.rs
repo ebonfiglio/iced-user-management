@@ -1,16 +1,16 @@
 use iced::{Task, Theme};
 
 use crate::domain::{DomainEntity, Entity, Job, Organization, User};
-use crate::infrastructure::{get_database_path, Database, EntityManager};
+use crate::infrastructure::{get_database_path, Database, EntityState};
 use crate::message::{Message, Page};
 use sqlx::SqlitePool;
 
 pub struct AppState {
     pub current_page: Page,
     pub active_entity: DomainEntity,
-    pub users: EntityManager<User>,
-    pub organizations: EntityManager<Organization>,
-    pub jobs: EntityManager<Job>,
+    pub users: EntityState<User>,
+    pub organizations: EntityState<Organization>,
+    pub jobs: EntityState<Job>,
     pub theme: Theme,
     pub db_pool: Option<SqlitePool>,
     pub status_message: String,
@@ -21,9 +21,9 @@ impl AppState {
         let state = Self {
             current_page: Page::User,
             active_entity: DomainEntity::User,
-            users: EntityManager::new(),
-            organizations: EntityManager::new(),
-            jobs: EntityManager::new(),
+            users: EntityState::new(),
+            organizations: EntityState::new(),
+            jobs: EntityState::new(),
             theme: Theme::Dark,
             db_pool: None,
             status_message: String::from("Loading..."),
@@ -49,14 +49,14 @@ impl AppState {
                 self.set_current_page(page);
                 with_manager!(self, cancel_edit);
             }
-            Message::NameChanged(name) => {
+            Message::UserNameChanged(name) => {
                 with_manager!(self, name_changed, name);
             }
-            Message::JobSelected(job) => {
+            Message::UserJobSelected(job) => {
                 self.users.current.set_job_id(job.id());
                 self.users.current.validate_property("job_id");
             }
-            Message::OrganizationSelected(organization) => {
+            Message::UserOrganizationSelected(organization) => {
                 self.users.current.set_organization_id(organization.id());
                 self.users.current.validate_property("organization_id");
             }
@@ -78,16 +78,16 @@ impl AppState {
                     self.organizations.current = organization;
                 }
             }
-            Message::Create => {
+            Message::UserCreate => {
                 with_manager!(self, create);
             }
-            Message::Update => {
+            Message::UserUpdate => {
                 with_manager!(self, update);
             }
-            Message::Delete(id) => {
+            Message::UserDelete(id) => {
                 with_manager!(self, delete, id);
             }
-            Message::Load(id) => {
+            Message::UserLoad(id) => {
                 with_manager!(self, load, id);
             }
             Message::CancelEdit => {
@@ -128,7 +128,7 @@ impl AppState {
         }
     }
 
-    pub fn get_job_name(&self, job_id: usize) -> String {
+    pub fn get_job_name(&self, job_id: i64) -> String {
         self.jobs
             .list
             .iter()
@@ -137,7 +137,7 @@ impl AppState {
             .unwrap_or_else(|| "None".to_string())
     }
 
-    pub fn get_organization_name(&self, organization_id: usize) -> String {
+    pub fn get_organization_name(&self, organization_id: i64) -> String {
         self.organizations
             .list
             .iter()
@@ -146,16 +146,3 @@ impl AppState {
             .unwrap_or_else(|| "None".to_string())
     }
 }
-
-macro_rules! with_manager {
-    ($self:expr, $method:ident $(, $arg:expr)*) => {
-        match $self.active_entity {
-            DomainEntity::User => { let _ = $self.users.$method($($arg),*); }
-            DomainEntity::Organization => { let _ = $self.organizations.$method($($arg),*); }
-            DomainEntity::Job => { let _ = $self.jobs.$method($($arg),*); }
-            DomainEntity::None => {}
-        }
-    };
-}
-
-pub(crate) use with_manager;

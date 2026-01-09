@@ -77,7 +77,7 @@ impl AppState {
 
     fn job_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("Job", &self.jobs.current.name()).on_input(Message::NameChanged),
+            text_input("Job", &self.jobs.current.name()).on_input(Message::UserNameChanged),
             if let Some(error) = self.jobs.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -102,10 +102,10 @@ impl AppState {
                         text(job.name().to_string()).width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::Load(job.id())),
+                            .on_press(Message::UserLoad(job.id())),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::Delete(job.id())),
+                            .on_press(Message::UserDelete(job.id())),
                     ]
                     .spacing(10)
                     .padding(5),
@@ -128,7 +128,7 @@ impl AppState {
     fn organization_form(&self) -> Container<'_, Message> {
         let name_input = column![
             text_input("Organization", &self.organizations.current.name())
-                .on_input(Message::NameChanged),
+                .on_input(Message::UserNameChanged),
             if let Some(error) = self.organizations.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -153,10 +153,10 @@ impl AppState {
                         text(organization.name().to_string()).width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::Load(organization.id())),
+                            .on_press(Message::UserLoad(organization.id())),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::Delete(organization.id())),
+                            .on_press(Message::UserDelete(organization.id())),
                     ]
                     .spacing(10)
                     .padding(5),
@@ -178,7 +178,7 @@ impl AppState {
 
     fn user_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("User", &self.users.current.name()).on_input(Message::NameChanged),
+            text_input("User", &self.users.current.name()).on_input(Message::UserNameChanged),
             if let Some(error) = self.users.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -196,7 +196,7 @@ impl AppState {
                     .list
                     .iter()
                     .find(|j| j.id() == self.users.current.job_id()),
-                Message::JobSelected,
+                Message::UserJobSelected,
             ),
             if let Some(error) = self.users.current.errors().get("job_id") {
                 text(error.to_string())
@@ -215,7 +215,7 @@ impl AppState {
                     .list
                     .iter()
                     .find(|k| k.id() == self.users.current.organization_id()),
-                Message::OrganizationSelected,
+                Message::UserOrganizationSelected,
             ),
             if let Some(error) = self.users.current.errors().get("organization_id") {
                 text(error.to_string())
@@ -254,11 +254,11 @@ impl AppState {
                             .width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::Load(user.id()))
+                            .on_press(Message::UserLoad(user.id()))
                             .width(Length::FillPortion(1)),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::Delete(user.id()))
+                            .on_press(Message::UserDelete(user.id()))
                             .width(Length::FillPortion(1)),
                     ]
                     .spacing(10)
@@ -283,14 +283,14 @@ impl AppState {
     fn get_form_buttons(&self, is_edit: bool) -> Row<'_, Message> {
         if is_edit {
             row![
-                button("Update").on_press(Message::Update),
+                button("Update").on_press(Message::UserUpdate),
                 button("Cancel")
                     .style(button::danger)
                     .on_press(Message::CancelEdit)
             ]
             .spacing(10)
         } else {
-            row![button("Create").on_press(Message::Create)]
+            row![button("Create").on_press(Message::UserCreate)]
         }
     }
 

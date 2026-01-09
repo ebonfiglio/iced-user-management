@@ -4,7 +4,7 @@ use super::Entity;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct Organization {
-    id: usize,
+    id: i64,
     name: String,
     errors: HashMap<&'static str, &'static str>,
 }
@@ -16,11 +16,11 @@ impl Organization {
 }
 
 impl Entity for Organization {
-    fn id(&self) -> usize {
+    fn id(&self) -> i64 {
         self.id
     }
 
-    fn set_id(&mut self, id: usize) {
+    fn set_id(&mut self, id: i64) {
         self.id = id;
     }
 
