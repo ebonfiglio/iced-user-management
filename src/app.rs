@@ -1,9 +1,13 @@
 use iced::{Task, Theme};
 
-use crate::domain::{DomainEntity, Entity, Job, Organization, User};
+use crate::domain::{DomainEntity, Entity, Job, Organization, User, UserService};
+use crate::infrastructure::job_repository::JobSqliteRepository;
+use crate::infrastructure::organization_repository::OrganizationSqliteRepository;
+use crate::infrastructure::user_repository::UserSqliteRepository;
 use crate::infrastructure::{get_database_path, Database, EntityState};
 use crate::message::{Message, Page};
 use sqlx::SqlitePool;
+use std::sync::Arc;
 
 pub struct AppState {
     pub current_page: Page,
@@ -12,12 +16,32 @@ pub struct AppState {
     pub organizations: EntityState<Organization>,
     pub jobs: EntityState<Job>,
     pub theme: Theme,
-    pub db_pool: Option<SqlitePool>,
     pub status_message: String,
+    pub user_service: Option<UserService>,
 }
 
 impl AppState {
     pub fn new() -> (Self, Task<Message>) {
+        let task = Task::perform(
+            async {
+                let db_path = get_database_path();
+                let database = Database::new(db_path.to_str().unwrap()).await?;
+
+                let pool = database.pool;
+                let user_repo = Arc::new(UserSqliteRepository::new(pool.clone()));
+                let job_repo = Arc::new(JobSqliteRepository::new(pool.clone()));
+                let org_repo = Arc::new(OrganizationSqliteRepository::new(pool.clone()));
+
+                let user_service = UserService::new(user_repo, job_repo, org_repo);
+
+                Ok::<UserService, sqlx::Error>(user_service)
+            },
+            |result| match result {
+                Ok(user_service) => Message::AppInitialized(user_service),
+                Err(e) => Message::InitializationError(e.to_string()),
+            },
+        );
+
         let state = Self {
             current_page: Page::User,
             active_entity: DomainEntity::User,
@@ -25,32 +49,18 @@ impl AppState {
             organizations: EntityState::new(),
             jobs: EntityState::new(),
             theme: Theme::Dark,
-            db_pool: None,
             status_message: String::from("Loading..."),
+            user_service: None,
         };
-
-        let task = Task::perform(
-            async {
-                let db_path = get_database_path();
-                Database::new(db_path.to_str().unwrap()).await
-            },
-            |result| match result {
-                Ok(db) => Message::DatabaseInitialized(db.pool),
-                Err(e) => Message::DatabaseError(e.to_string()),
-            },
-        );
 
         (state, task)
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Navigate(page) => {
-                self.set_current_page(page);
-                with_manager!(self, cancel_edit);
-            }
+            Message::Navigate(page) => self.set_current_page(page),
             Message::UserNameChanged(name) => {
-                with_manager!(self, name_changed, name);
+                self.users.current.validate_property("name");
             }
             Message::UserJobSelected(job) => {
                 self.users.current.set_job_id(job.id());
@@ -78,31 +88,52 @@ impl AppState {
                     self.organizations.current = organization;
                 }
             }
-            Message::UserCreate => {
-                with_manager!(self, create);
-            }
-            Message::UserUpdate => {
-                with_manager!(self, update);
-            }
-            Message::UserDelete(id) => {
-                with_manager!(self, delete, id);
-            }
+            Message::UserCreate => {}
+            Message::UserUpdate => {}
+            Message::UserDelete(id) => {}
+
             Message::UserLoad(id) => {
-                with_manager!(self, load, id);
+                if let Some(service) = &self.user_service {
+                    let service = service.clone();
+                    return Task::perform(
+                        async move { service.get_user_by_id(id).await },
+                        |result| match result {
+                            Ok(Some(user)) => Message::UserLoaded(user),
+                            Ok(None) => Message::UserNotFound,
+                            Err(e) => Message::UserLoadError(e.to_string()),
+                        },
+                    );
+                } else {
+                    self.status_message = "Service not initialized".to_string();
+                }
             }
-            Message::CancelEdit => {
-                with_manager!(self, cancel_edit);
+            Message::UserLoaded(user) => {
+                self.users.current = user;
+                self.status_message = "User loaded".to_string();
             }
+            Message::UserNotFound => {
+                self.status_message = "User not found".to_string();
+                self.users.current = User::new();
+            }
+            Message::UserLoadError(err) => {
+                self.status_message = format!("Error loading user: {}", err);
+                self.users.current = User::new();
+            }
+            Message::CancelEdit => match self.current_page {
+                Page::User => self.users.cancel_edit(),
+                Page::Job => self.jobs.cancel_edit(),
+                Page::Organization => self.organizations.cancel_edit(),
+                _ => {}
+            },
             Message::ThemeChanged(theme) => {
                 self.theme = theme;
             }
-            Message::DatabaseInitialized(db_pool) => {
-                self.db_pool = Some(db_pool);
-                self.status_message = "Database connected".to_string();
+
+            Message::AppInitialized(user_service) => {
+                self.user_service = Some(user_service);
+                self.status_message = "Ready".to_string();
             }
-            Message::DatabaseError(err) => {
-                self.status_message = format!("Database error: {}", err);
-            }
+            Message::InitializationError(err) => self.status_message = err,
         }
         Task::none()
     }
@@ -110,14 +141,17 @@ impl AppState {
     pub fn set_current_page(&mut self, page: Page) {
         match page {
             Page::User => {
+                self.users.cancel_edit();
                 self.current_page = Page::User;
                 self.active_entity = DomainEntity::User;
             }
             Page::Job => {
+                self.jobs.cancel_edit();
                 self.current_page = Page::Job;
                 self.active_entity = DomainEntity::Job;
             }
             Page::Organization => {
+                self.organizations.cancel_edit();
                 self.current_page = Page::Organization;
                 self.active_entity = DomainEntity::Organization;
             }

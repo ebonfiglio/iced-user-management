@@ -4,10 +4,21 @@ use crate::domain::{
 };
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct UserService {
     user_repo: Arc<dyn UserRepository>,
     job_repo: Arc<dyn JobRepository>,
     org_repo: Arc<dyn OrganizationRepository>,
+}
+
+impl std::fmt::Debug for UserService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UserService")
+            .field("user_repo", &"Arc<dyn UserRepository>")
+            .field("job_repo", &"Arc<dyn JobRepository>")
+            .field("org_repo", &"Arc<dyn OrganizationRepository>")
+            .finish()
+    }
 }
 
 impl UserService {
