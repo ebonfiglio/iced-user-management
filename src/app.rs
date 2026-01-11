@@ -3,10 +3,9 @@ use iced::{Task, Theme};
 use crate::domain::{DomainEntity, Entity, Job, Organization, User, UserService};
 use crate::infrastructure::job_repository::JobSqliteRepository;
 use crate::infrastructure::organization_repository::OrganizationSqliteRepository;
-use crate::infrastructure::user_repository::UserSqliteRepository;
+use crate::infrastructure::user_repository::{self, UserSqliteRepository};
 use crate::infrastructure::{get_database_path, Database, EntityState};
 use crate::message::{Message, Page};
-use sqlx::SqlitePool;
 use std::sync::Arc;
 
 pub struct AppState {
@@ -60,6 +59,7 @@ impl AppState {
         match message {
             Message::Navigate(page) => self.set_current_page(page),
             Message::UserNameChanged(name) => {
+                self.users.current.set_name(name);
                 self.users.current.validate_property("name");
             }
             Message::UserJobSelected(job) => {
@@ -88,7 +88,24 @@ impl AppState {
                     self.organizations.current = organization;
                 }
             }
-            Message::UserCreate => {}
+            Message::UserCreate => match self.users.current.validate() {
+                Ok(()) => {
+                    let user_to_create = self.users.current.clone();
+                    if let Some(service) = &self.user_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.create_user(user_to_create).await },
+                            |result| match result {
+                                Ok(user) => Message::UserLoaded(user),
+                                Err(e) => Message::UserLoadError(e.to_string()),
+                            },
+                        );
+                    } else {
+                        self.status_message = "Service not initialized".to_string();
+                    }
+                }
+                Err(msg) => self.status_message = "Validation Errors".to_string(),
+            },
             Message::UserUpdate => {}
             Message::UserDelete(id) => {}
 
