@@ -3,7 +3,7 @@ use iced::{Task, Theme};
 use crate::domain::{DomainEntity, Entity, Job, Organization, User, UserService};
 use crate::infrastructure::job_repository::JobSqliteRepository;
 use crate::infrastructure::organization_repository::OrganizationSqliteRepository;
-use crate::infrastructure::user_repository::{self, UserSqliteRepository};
+use crate::infrastructure::user_repository::UserSqliteRepository;
 use crate::infrastructure::{get_database_path, Database, EntityState};
 use crate::message::{Message, Page};
 use std::sync::Arc;
@@ -17,6 +17,7 @@ pub struct AppState {
     pub theme: Theme,
     pub status_message: String,
     pub user_service: Option<UserService>,
+    pub job_service: Option<J
 }
 
 impl AppState {
@@ -135,6 +136,14 @@ impl AppState {
             Message::UserLoadError(err) => {
                 self.status_message = format!("Error loading user: {}", err);
                 self.users.current = User::new();
+            }
+            Message::JobCreate() =>{
+                match self.jobs.current.validate() {
+                    Ok() =>{
+                        let job_to_create = self.jobs.current.clone();
+                        match 
+                    }
+                }
             }
             Message::CancelEdit => match self.current_page {
                 Page::User => self.users.cancel_edit(),

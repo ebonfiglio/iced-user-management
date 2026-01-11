@@ -27,7 +27,22 @@ impl JobRepository for JobSqliteRepository {
     }
 
     async fn create(&self, job: &Job) -> Result<Job, RepositoryError> {
-        Ok(Job::new())
+        let job_name = job.name();
+
+        let result = sqlx::query!(
+            r#"
+            INSERT INTO jobs (name)
+            VALUES (?)
+            "#,
+            job_name
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        let mut saved_job = job.clone();
+        saved_job.set_id(result.last_insert_rowid());
+        Ok(saved_job)
     }
 
     async fn update(&self, job: &Job) -> Result<(), RepositoryError> {

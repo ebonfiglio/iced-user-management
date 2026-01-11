@@ -26,7 +26,22 @@ impl OrganizationRepository for OrganizationSqliteRepository {
     }
 
     async fn create(&self, organization: &Organization) -> Result<Organization, RepositoryError> {
-        Ok(Organization::new())
+        let organization_name = organization.name();
+
+        let result = sqlx::query!(
+            r#"
+            INSERT INTO organizations (name)
+            VALUES (?)
+            "#,
+            organization_name
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        let mut saved_organization = organization.clone();
+        saved_organization.set_id(result.last_insert_rowid());
+        Ok(saved_organization)
     }
 
     async fn update(&self, organization: &Organization) -> Result<(), RepositoryError> {
