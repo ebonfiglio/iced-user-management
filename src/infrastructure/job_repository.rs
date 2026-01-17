@@ -20,7 +20,24 @@ impl JobSqliteRepository {
 #[async_trait]
 impl JobRepository for JobSqliteRepository {
     async fn find_by_id(&self, id: i64) -> Result<Option<Job>, RepositoryError> {
-        Ok(Some(Job::new()))
+        let row = sqlx::query!(
+            r#"
+            SELECT id, name
+            FROM jobs
+            WHERE id = ?
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        Ok(row.map(|r| {
+            let mut job = Job::new();
+            job.set_id(r.id);
+            job.set_name(r.name);
+            job
+        }))
     }
     async fn find_all(&self) -> Result<Vec<Job>, RepositoryError> {
         Ok(Vec::new())

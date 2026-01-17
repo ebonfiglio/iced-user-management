@@ -1,3 +1,5 @@
+use iced::futures::future::ok;
+
 use crate::domain::{
     repositories::{JobRepository, RepositoryError},
     Entity, Job,
@@ -5,11 +7,19 @@ use crate::domain::{
 use std::sync::Arc;
 
 #[derive(Clone)]
-struct JobService {
+pub struct JobService {
     job_repo: Arc<dyn JobRepository>,
 }
 
 impl JobService {
+    pub fn new(job_repo: Arc<dyn JobRepository>) -> Self {
+        Self { job_repo }
+    }
+
+    pub async fn get_job_by_id(&self, id: i64) -> Result<Option<Job>, JobServiceError> {
+        Ok(self.job_repo.find_by_id(id).await?)
+    }
+
     pub async fn create_job(&self, mut job: Job) -> Result<Job, JobServiceError> {
         job.validate()
             .map_err(|_| JobServiceError::ValidationError)?;

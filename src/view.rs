@@ -77,7 +77,7 @@ impl AppState {
 
     fn job_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("Job", &self.jobs.current.name()).on_input(Message::UserNameChanged),
+            text_input("Job", &self.jobs.current.name()).on_input(Message::JobNameChanged),
             if let Some(error) = self.jobs.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -290,7 +290,13 @@ impl AppState {
             ]
             .spacing(10)
         } else {
-            row![button("Create").on_press(Message::UserCreate)]
+            let action = match self.current_page {
+                Page::User => Message::UserCreate,
+                Page::Organization => Message::OrganizationCreate,
+                Page::Job => Message::JobCreate,
+                Page::Settings => panic!("Invalid page state."),
+            };
+            row![button("Create").on_press(action)]
         }
     }
 

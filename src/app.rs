@@ -1,5 +1,7 @@
 use iced::{Task, Theme};
 
+use crate::domain::services::JobService;
+use crate::domain::services::OrganizationService;
 use crate::domain::{DomainEntity, Entity, Job, Organization, User, UserService};
 use crate::infrastructure::job_repository::JobSqliteRepository;
 use crate::infrastructure::organization_repository::OrganizationSqliteRepository;
@@ -17,7 +19,7 @@ pub struct AppState {
     pub theme: Theme,
     pub status_message: String,
     pub user_service: Option<UserService>,
-    pub job_service: Option<J
+    pub job_service: Option<JobService>,
 }
 
 impl AppState {
@@ -32,12 +34,15 @@ impl AppState {
                 let job_repo = Arc::new(JobSqliteRepository::new(pool.clone()));
                 let org_repo = Arc::new(OrganizationSqliteRepository::new(pool.clone()));
 
-                let user_service = UserService::new(user_repo, job_repo, org_repo);
+                let user_service = UserService::new(user_repo, job_repo.clone(), org_repo);
+                let job_service = JobService::new(job_repo.clone());
 
-                Ok::<UserService, sqlx::Error>(user_service)
+                Ok::<(UserService, JobService), sqlx::Error>((user_service, job_service))
             },
             |result| match result {
-                Ok(user_service) => Message::AppInitialized(user_service),
+                Ok((user_service, job_service)) => {
+                    Message::AppInitialized(user_service, job_service)
+                }
                 Err(e) => Message::InitializationError(e.to_string()),
             },
         );
@@ -51,6 +56,7 @@ impl AppState {
             theme: Theme::Dark,
             status_message: String::from("Loading..."),
             user_service: None,
+            job_service: None,
         };
 
         (state, task)
@@ -109,7 +115,6 @@ impl AppState {
             },
             Message::UserUpdate => {}
             Message::UserDelete(id) => {}
-
             Message::UserLoad(id) => {
                 if let Some(service) = &self.user_service {
                     let service = service.clone();
@@ -137,14 +142,66 @@ impl AppState {
                 self.status_message = format!("Error loading user: {}", err);
                 self.users.current = User::new();
             }
-            Message::JobCreate() =>{
-                match self.jobs.current.validate() {
-                    Ok() =>{
-                        let job_to_create = self.jobs.current.clone();
-                        match 
+            Message::JobNameChanged(name) => {
+                self.jobs.current.set_name(name);
+                self.jobs.current.validate_property("name");
+            }
+            Message::JobCreate => match self.jobs.current.validate() {
+                Ok(()) => {
+                    let job_to_create = self.jobs.current.clone();
+                    if let Some(service) = &self.job_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.create_job(job_to_create).await },
+                            |result| match result {
+                                Ok(job) => Message::JobLoaded(job),
+                                Err(e) => Message::JobLoadError(e.to_string()),
+                            },
+                        );
+                    } else {
+                        self.status_message = "Service not initialized".to_string();
                     }
                 }
+                Err(msg) => {
+                    self.status_message = format!(
+                        "Validation Errors:\n{}",
+                        msg.iter()
+                            .map(|(key, value)| format!("  • {}: {}", key, value))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    );
+                }
+            },
+            Message::JobLoad(id) => {
+                if let Some(service) = &self.job_service {
+                    let service = service.clone();
+                    return Task::perform(
+                        async move { service.get_job_by_id(id).await },
+                        |result| match result {
+                            Ok(Some(job)) => Message::JobLoaded(job),
+                            Ok(None) => Message::JobNotFound,
+                            Err(e) => Message::JobLoadError(e.to_string()),
+                        },
+                    );
+                } else {
+                    self.status_message = "Service not initialized".to_string();
+                }
             }
+            Message::JobLoaded(job) => {
+                self.jobs.current = job;
+                self.status_message = "Job loaded".to_string();
+            }
+            Message::JobUpdate => {}
+            Message::JobDelete(id) => {}
+            Message::JobNotFound => {
+                self.status_message = "Job not found".to_string();
+                self.jobs.current = Job::new();
+            }
+            Message::JobLoadError(err) => {
+                self.status_message = format!("Error loading job: {}", err);
+                self.jobs.current = Job::new();
+            }
+            Message::OrganizationCreate => {}
             Message::CancelEdit => match self.current_page {
                 Page::User => self.users.cancel_edit(),
                 Page::Job => self.jobs.cancel_edit(),
@@ -155,8 +212,9 @@ impl AppState {
                 self.theme = theme;
             }
 
-            Message::AppInitialized(user_service) => {
+            Message::AppInitialized(user_service, job_service) => {
                 self.user_service = Some(user_service);
+                self.job_service = Some(job_service);
                 self.status_message = "Ready".to_string();
             }
             Message::InitializationError(err) => self.status_message = err,

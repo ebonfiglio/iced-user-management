@@ -1,4 +1,4 @@
-use crate::domain::{Job, Organization, User, UserService};
+use crate::domain::{services::JobService, Job, Organization, User, UserService};
 use iced::Theme;
 use sqlx::SqlitePool;
 
@@ -7,7 +7,7 @@ pub enum Message {
     Navigate(Page),
     CancelEdit,
     ThemeChanged(Theme),
-    AppInitialized(UserService),
+    AppInitialized(UserService, JobService),
     InitializationError(String),
 
     JobClicked(i64),
@@ -25,13 +25,17 @@ pub enum Message {
     UserLoadError(String),
     // JobNameChanged(String),
     // JobOrganizationSelected(Organization),
-    // JobCreate,
-    // JobUpdate,
-    // JobDelete(i64),
-    // JobLoad(i64),
+    JobNameChanged(String),
+    JobCreate,
+    JobUpdate,
+    JobDelete(i64),
+    JobLoad(i64),
+    JobLoaded(Job),
+    JobNotFound,
+    JobLoadError(String),
 
     // OrganizationNameChanged(String),
-    // OrganizationCreate,
+    OrganizationCreate,
     // OrganizationUpdate,
     // OrganizationDelete(i64),
     // OrganizationLoad(i64),
