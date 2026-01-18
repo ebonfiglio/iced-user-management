@@ -25,6 +25,8 @@ pub enum Message {
     UserLoadError(String),
     // JobNameChanged(String),
     // JobOrganizationSelected(Organization),
+    JobGetAll,
+    JobSetAll(Vec<Job>),
     JobNameChanged(String),
     JobCreate,
     JobUpdate,
@@ -33,6 +35,7 @@ pub enum Message {
     JobLoaded(Job),
     JobNotFound,
     JobLoadError(String),
+    JobsLoaded(Vec<Job>),
 
     // OrganizationNameChanged(String),
     OrganizationCreate,

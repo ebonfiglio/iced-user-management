@@ -146,6 +146,9 @@ impl AppState {
                 self.jobs.current.set_name(name);
                 self.jobs.current.validate_property("name");
             }
+            Message::JobsLoaded(jobs) => {
+                self.jobs.list = jobs;
+            }
             Message::JobCreate => match self.jobs.current.validate() {
                 Ok(()) => {
                     let job_to_create = self.jobs.current.clone();
@@ -154,7 +157,10 @@ impl AppState {
                         return Task::perform(
                             async move { service.create_job(job_to_create).await },
                             |result| match result {
-                                Ok(job) => Message::JobLoaded(job),
+                                Ok(job) => {
+                                    Message::JobLoaded(job);
+                                    Message::JobGetAll
+                                }
                                 Err(e) => Message::JobLoadError(e.to_string()),
                             },
                         );
@@ -216,6 +222,21 @@ impl AppState {
                 self.user_service = Some(user_service);
                 self.job_service = Some(job_service);
                 self.status_message = "Ready".to_string();
+                return Task::done(Message::JobGetAll);
+            }
+            Message::JobGetAll => {
+                if let Some(service) = &self.job_service {
+                    let service = service.clone();
+                    return Task::perform(async move { service.get_all_jobs().await }, |result| {
+                        match result {
+                            Ok(jobs) => Message::JobSetAll(jobs),
+                            Err(e) => Message::JobLoadError(e.to_string()),
+                        }
+                    });
+                }
+            }
+            Message::JobSetAll(jobs) => {
+                self.jobs.list = jobs;
             }
             Message::InitializationError(err) => self.status_message = err,
         }

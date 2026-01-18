@@ -28,6 +28,10 @@ impl JobService {
 
         Ok(job)
     }
+
+    pub async fn get_all_jobs(&self) -> Result<Vec<Job>, JobServiceError> {
+        Ok(self.job_repo.find_all().await?)
+    }
 }
 
 impl std::fmt::Debug for JobService {

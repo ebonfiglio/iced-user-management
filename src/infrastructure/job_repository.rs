@@ -40,7 +40,26 @@ impl JobRepository for JobSqliteRepository {
         }))
     }
     async fn find_all(&self) -> Result<Vec<Job>, RepositoryError> {
-        Ok(Vec::new())
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, name
+            FROM jobs
+            ORDER BY name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let mut job = Job::new();
+                job.set_id(r.id.unwrap_or(0));
+                job.set_name(r.name);
+                job
+            })
+            .collect())
     }
 
     async fn create(&self, job: &Job) -> Result<Job, RepositoryError> {
