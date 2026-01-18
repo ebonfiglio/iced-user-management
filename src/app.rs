@@ -146,9 +146,6 @@ impl AppState {
                 self.jobs.current.set_name(name);
                 self.jobs.current.validate_property("name");
             }
-            Message::JobsLoaded(jobs) => {
-                self.jobs.list = jobs;
-            }
             Message::JobCreate => match self.jobs.current.validate() {
                 Ok(()) => {
                     let job_to_create = self.jobs.current.clone();
@@ -157,10 +154,7 @@ impl AppState {
                         return Task::perform(
                             async move { service.create_job(job_to_create).await },
                             |result| match result {
-                                Ok(job) => {
-                                    Message::JobLoaded(job);
-                                    Message::JobGetAll
-                                }
+                                Ok(job) => Message::JobCreateSuccess,
                                 Err(e) => Message::JobLoadError(e.to_string()),
                             },
                         );
@@ -178,6 +172,10 @@ impl AppState {
                     );
                 }
             },
+            Message::JobCreateSuccess => {
+                self.jobs.clear_entity_state();
+                return Task::done(Message::JobGetAll);
+            }
             Message::JobLoad(id) => {
                 if let Some(service) = &self.job_service {
                     let service = service.clone();
@@ -195,6 +193,7 @@ impl AppState {
             }
             Message::JobLoaded(job) => {
                 self.jobs.current = job;
+                self.jobs.is_edit = true;
                 self.status_message = "Job loaded".to_string();
             }
             Message::JobUpdate => {}
@@ -209,9 +208,9 @@ impl AppState {
             }
             Message::OrganizationCreate => {}
             Message::CancelEdit => match self.current_page {
-                Page::User => self.users.cancel_edit(),
-                Page::Job => self.jobs.cancel_edit(),
-                Page::Organization => self.organizations.cancel_edit(),
+                Page::User => self.users.clear_entity_state(),
+                Page::Job => self.jobs.clear_entity_state(),
+                Page::Organization => self.organizations.clear_entity_state(),
                 _ => {}
             },
             Message::ThemeChanged(theme) => {
@@ -246,17 +245,17 @@ impl AppState {
     pub fn set_current_page(&mut self, page: Page) {
         match page {
             Page::User => {
-                self.users.cancel_edit();
+                self.users.clear_entity_state();
                 self.current_page = Page::User;
                 self.active_entity = DomainEntity::User;
             }
             Page::Job => {
-                self.jobs.cancel_edit();
+                self.jobs.clear_entity_state();
                 self.current_page = Page::Job;
                 self.active_entity = DomainEntity::Job;
             }
             Page::Organization => {
-                self.organizations.cancel_edit();
+                self.organizations.clear_entity_state();
                 self.current_page = Page::Organization;
                 self.active_entity = DomainEntity::Organization;
             }

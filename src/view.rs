@@ -102,10 +102,10 @@ impl AppState {
                         text(job.name().to_string()).width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::UserLoad(job.id())),
+                            .on_press(Message::JobLoad(job.id())),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::UserDelete(job.id())),
+                            .on_press(Message::JobDelete(job.id())),
                     ]
                     .spacing(10)
                     .padding(5),
