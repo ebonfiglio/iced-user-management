@@ -14,15 +14,52 @@ use crate::message::{
 use std::sync::Arc;
 
 pub struct AppState {
-    pub current_page: Page,
+    current_page: Page,
     pub active_entity: DomainEntity,
     pub users: EntityState<User>,
     pub organizations: EntityState<Organization>,
     pub jobs: EntityState<Job>,
     pub theme: Theme,
-    pub status_message: String,
+    status_message: String,
     pub user_service: Option<UserService>,
     pub job_service: Option<JobService>,
+}
+
+impl AppState {
+    pub fn status_message(&self) -> &str {
+        &self.status_message
+    }
+    pub fn set_status_message(&mut self, message: String) {
+        self.status_message = message;
+    }
+
+    pub fn current_page(&self) -> Page {
+        self.current_page
+    }
+
+    pub fn set_current_page(&mut self, page: Page) {
+        match page {
+            Page::User => {
+                self.users.clear_entity_state();
+                self.current_page = Page::User;
+                self.active_entity = DomainEntity::User;
+            }
+            Page::Job => {
+                self.jobs.clear_entity_state();
+                self.current_page = Page::Job;
+                self.active_entity = DomainEntity::Job;
+            }
+            Page::Organization => {
+                self.organizations.clear_entity_state();
+                self.current_page = Page::Organization;
+                self.active_entity = DomainEntity::Organization;
+            }
+            Page::Settings => {
+                self.current_page = Page::Settings;
+                self.active_entity = DomainEntity::None;
+            }
+        }
+    }
 }
 
 impl AppState {
@@ -91,7 +128,7 @@ impl AppState {
                         "Ready".to_string(),
                     )));
                 }
-                AppMessage::SetStatusMessage(msg) => self.status_message = msg,
+                AppMessage::SetStatusMessage(msg) => self.set_status_message(msg),
             },
             Message::Job(job_msg) => match job_msg {
                 JobMessage::GetAll => {
@@ -132,17 +169,19 @@ impl AppState {
                                 },
                             );
                         } else {
-                            self.status_message = "Service not initialized".to_string();
+                            return Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "Service not initialized".to_string(),
+                            )));
                         }
                     }
                     Err(msg) => {
-                        self.status_message = format!(
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
                             "Validation Errors:\n{}",
                             msg.iter()
                                 .map(|(key, value)| format!("  • {}: {}", key, value))
                                 .collect::<Vec<_>>()
                                 .join("\n")
-                        );
+                        ))));
                     }
                 },
                 JobMessage::CreateSuccess => {
@@ -163,23 +202,34 @@ impl AppState {
                             },
                         );
                     } else {
-                        self.status_message = "Service not initialized".to_string();
+                        return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                            Message::App(AppMessage::SetStatusMessage(
+                                "Service not initialized".to_string(),
+                            )),
+                        ));
                     }
                 }
                 JobMessage::Loaded(job) => {
                     self.jobs.current = job;
                     self.jobs.is_edit = true;
-                    self.status_message = "Job loaded".to_string();
+                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage("Job loaded".to_string())),
+                    ));
                 }
                 JobMessage::Update => {}
                 JobMessage::Delete(id) => {}
                 JobMessage::NotFound => {
-                    self.status_message = "Job not found".to_string();
                     self.jobs.current = Job::new();
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Job not found".to_string(),
+                    )));
                 }
                 JobMessage::LoadError(err) => {
-                    self.status_message = format!("Error loading job: {}", err);
                     self.jobs.current = Job::new();
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                        "Error loading job: {}",
+                        err
+                    ))));
                 }
             },
             Message::Organization(org_msg) => match org_msg {
@@ -223,10 +273,16 @@ impl AppState {
                                 },
                             );
                         } else {
-                            self.status_message = "Service not initialized".to_string();
+                            return Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "Service not initialized".to_string(),
+                            )));
                         }
                     }
-                    Err(msg) => self.status_message = "Validation Errors".to_string(),
+                    Err(msg) => {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Validation Errors".to_string(),
+                        )));
+                    }
                 },
                 UserMessage::Update => {}
                 UserMessage::Delete(id) => {}
@@ -242,48 +298,33 @@ impl AppState {
                             },
                         );
                     } else {
-                        self.status_message = "Service not initialized".to_string();
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "UserService not initialized".to_string(),
+                        )));
                     }
                 }
                 UserMessage::Loaded(user) => {
                     self.users.current = user;
-                    self.status_message = "User loaded".to_string();
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "User loaded".to_string(),
+                    )));
                 }
                 UserMessage::NotFound => {
-                    self.status_message = "User not found".to_string();
                     self.users.current = User::new();
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "User not found".to_string(),
+                    )));
                 }
                 UserMessage::LoadError(err) => {
-                    self.status_message = format!("Error loading user: {}", err);
                     self.users.current = User::new();
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                        "Error loading user: {}",
+                        err
+                    ))));
                 }
             },
         }
         Task::none()
-    }
-
-    pub fn set_current_page(&mut self, page: Page) {
-        match page {
-            Page::User => {
-                self.users.clear_entity_state();
-                self.current_page = Page::User;
-                self.active_entity = DomainEntity::User;
-            }
-            Page::Job => {
-                self.jobs.clear_entity_state();
-                self.current_page = Page::Job;
-                self.active_entity = DomainEntity::Job;
-            }
-            Page::Organization => {
-                self.organizations.clear_entity_state();
-                self.current_page = Page::Organization;
-                self.active_entity = DomainEntity::Organization;
-            }
-            Page::Settings => {
-                self.current_page = Page::Settings;
-                self.active_entity = DomainEntity::None;
-            }
-        }
     }
 
     pub fn get_job_name(&self, job_id: i64) -> String {

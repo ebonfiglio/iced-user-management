@@ -43,7 +43,7 @@ impl AppState {
         })
         .width(FillPortion(1));
 
-        let status_bar = container(text(&self.status_message).size(12))
+        let status_bar = container(text(&self.status_message().to_string()).size(12))
             .padding(5)
             .width(Length::Fill)
             .style(|theme: &Theme| container::Style {
@@ -62,15 +62,15 @@ impl AppState {
             });
 
         container(column![
-            row![navigation, self.current_page()].spacing(10),
+            row![navigation, self.set_current_form()].spacing(10),
             row![status_bar]
         ])
         .padding(10)
         .into()
     }
 
-    fn current_page(&self) -> Container<'_, Message> {
-        match self.current_page {
+    fn set_current_form(&self) -> Container<'_, Message> {
+        match self.current_page() {
             Page::Organization => self.organization_form(),
             Page::User => self.user_form(),
             Page::Job => self.job_form(),
