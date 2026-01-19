@@ -75,16 +75,23 @@ impl AppState {
                 AppMessage::Initialized(user_service, job_service) => {
                     self.user_service = Some(user_service);
                     self.job_service = Some(job_service);
-                    self.status_message = "Ready".to_string();
-                    return Task::done(Message::Job(JobMessage::GetAll));
+                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                    ));
                 }
                 AppMessage::InitializationError(err) => self.status_message = err,
-                AppMessage::CancelEdit => match self.current_page {
-                    Page::User => self.users.clear_entity_state(),
-                    Page::Job => self.jobs.clear_entity_state(),
-                    Page::Organization => self.organizations.clear_entity_state(),
-                    _ => {}
-                },
+                AppMessage::CancelEdit => {
+                    match self.current_page {
+                        Page::User => self.users.clear_entity_state(),
+                        Page::Job => self.jobs.clear_entity_state(),
+                        Page::Organization => self.organizations.clear_entity_state(),
+                        _ => {}
+                    };
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Ready".to_string(),
+                    )));
+                }
+                AppMessage::SetStatusMessage(msg) => self.status_message = msg,
             },
             Message::Job(job_msg) => match job_msg {
                 JobMessage::GetAll => {
@@ -140,7 +147,9 @@ impl AppState {
                 },
                 JobMessage::CreateSuccess => {
                     self.jobs.clear_entity_state();
-                    return Task::done(Message::Job(JobMessage::GetAll));
+                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                    ));
                 }
                 JobMessage::Load(id) => {
                     if let Some(service) = &self.job_service {

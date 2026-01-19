@@ -16,4 +16,5 @@ pub enum AppMessage {
     ThemeChanged(Theme),
     Initialized(UserService, JobService),
     InitializationError(String),
+    SetStatusMessage(String),
 }
