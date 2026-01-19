@@ -19,10 +19,46 @@ impl OrganizationSqliteRepository {
 #[async_trait]
 impl OrganizationRepository for OrganizationSqliteRepository {
     async fn find_by_id(&self, id: i64) -> Result<Option<Organization>, RepositoryError> {
-        Ok(Some(Organization::new()))
+        let row = sqlx::query!(
+            r#"
+            SELECT id, name
+            FROM organizations
+            WHERE id = ?
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        Ok(row.map(|r| {
+            let mut org = Organization::new();
+            org.set_id(r.id);
+            org.set_name(r.name);
+            org
+        }))
     }
     async fn find_all(&self) -> Result<Vec<Organization>, RepositoryError> {
-        Ok(Vec::new())
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, name
+            FROM organizations
+            ORDER BY name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let mut org = Organization::new();
+                org.set_id(r.id.unwrap_or(0));
+                org.set_name(r.name);
+                org
+            })
+            .collect())
     }
 
     async fn create(&self, organization: &Organization) -> Result<Organization, RepositoryError> {

@@ -7,7 +7,10 @@ use iced::{
 
 use crate::app::AppState;
 use crate::domain::Entity;
-use crate::message::{Message, Page};
+use crate::message::{
+    app_message::AppMessage, job_message::JobMessage, organization_message::OrganizationMessage,
+    user_message::UserMessage, Message, Page,
+};
 
 impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
@@ -15,16 +18,16 @@ impl AppState {
             column![
                 row![button(container("Users").center_x(30).center_y(30))
                     .width(Length::Fill)
-                    .on_press(Message::Navigate(Page::User))],
+                    .on_press(Message::App(AppMessage::Navigate(Page::User)))],
                 row![button(container("Organizations").center_x(30).center_y(30))
                     .width(Length::Fill)
-                    .on_press(Message::Navigate(Page::Organization))],
+                    .on_press(Message::App(AppMessage::Navigate(Page::Organization)))],
                 row![button(container("Jobs").center_x(30).center_y(30))
                     .width(Length::Fill)
-                    .on_press(Message::Navigate(Page::Job))],
+                    .on_press(Message::App(AppMessage::Navigate(Page::Job)))],
                 row![button(container("Settings").center_x(30).center_y(30))
                     .width(Length::Fill)
-                    .on_press(Message::Navigate(Page::Settings))],
+                    .on_press(Message::App(AppMessage::Navigate(Page::Settings)))],
             ]
             .spacing(10)
             .height(Fill),
@@ -77,7 +80,8 @@ impl AppState {
 
     fn job_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("Job", &self.jobs.current.name()).on_input(Message::JobNameChanged),
+            text_input("Job", &self.jobs.current.name())
+                .on_input(|name| Message::Job(JobMessage::NameChanged(name))),
             if let Some(error) = self.jobs.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -102,10 +106,10 @@ impl AppState {
                         text(job.name().to_string()).width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::JobLoad(job.id())),
+                            .on_press(Message::Job(JobMessage::Load(job.id()))),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::JobDelete(job.id())),
+                            .on_press(Message::Job(JobMessage::Delete(job.id()))),
                     ]
                     .spacing(10)
                     .padding(5),
@@ -128,7 +132,7 @@ impl AppState {
     fn organization_form(&self) -> Container<'_, Message> {
         let name_input = column![
             text_input("Organization", &self.organizations.current.name())
-                .on_input(Message::UserNameChanged),
+                .on_input(|name| Message::User(UserMessage::NameChanged(name))),
             if let Some(error) = self.organizations.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -153,10 +157,10 @@ impl AppState {
                         text(organization.name().to_string()).width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::UserLoad(organization.id())),
+                            .on_press(Message::User(UserMessage::Load(organization.id()))),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::UserDelete(organization.id())),
+                            .on_press(Message::User(UserMessage::Delete(organization.id()))),
                     ]
                     .spacing(10)
                     .padding(5),
@@ -178,7 +182,8 @@ impl AppState {
 
     fn user_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("User", &self.users.current.name()).on_input(Message::UserNameChanged),
+            text_input("User", &self.users.current.name())
+                .on_input(|name| Message::User(UserMessage::NameChanged(name))),
             if let Some(error) = self.users.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -196,7 +201,7 @@ impl AppState {
                     .list
                     .iter()
                     .find(|j| j.id() == self.users.current.job_id()),
-                Message::UserJobSelected,
+                |job| Message::User(UserMessage::JobSelected(job)),
             ),
             if let Some(error) = self.users.current.errors().get("job_id") {
                 text(error.to_string())
@@ -215,7 +220,7 @@ impl AppState {
                     .list
                     .iter()
                     .find(|k| k.id() == self.users.current.organization_id()),
-                Message::UserOrganizationSelected,
+                |org| Message::User(UserMessage::OrganizationSelected(org)),
             ),
             if let Some(error) = self.users.current.errors().get("organization_id") {
                 text(error.to_string())
@@ -246,19 +251,21 @@ impl AppState {
                         text(user.name().to_string()).width(Length::FillPortion(2)),
                         button(text(job_name))
                             .style(button::text)
-                            .on_press(Message::JobClicked(user.job_id()))
+                            .on_press(Message::Job(JobMessage::Clicked(user.job_id())))
                             .width(Length::FillPortion(2)),
                         button(text(organization_name))
                             .style(button::text)
-                            .on_press(Message::OrganizationClicked(user.organization_id()))
+                            .on_press(Message::Organization(OrganizationMessage::Clicked(
+                                user.organization_id()
+                            )))
                             .width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::UserLoad(user.id()))
+                            .on_press(Message::User(UserMessage::Load(user.id())))
                             .width(Length::FillPortion(1)),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::UserDelete(user.id()))
+                            .on_press(Message::User(UserMessage::Delete(user.id())))
                             .width(Length::FillPortion(1)),
                     ]
                     .spacing(10)
@@ -283,17 +290,17 @@ impl AppState {
     fn get_form_buttons(&self, is_edit: bool) -> Row<'_, Message> {
         if is_edit {
             row![
-                button("Update").on_press(Message::UserUpdate),
+                button("Update").on_press(Message::User(UserMessage::Update)),
                 button("Cancel")
                     .style(button::danger)
-                    .on_press(Message::CancelEdit)
+                    .on_press(Message::App(AppMessage::CancelEdit))
             ]
             .spacing(10)
         } else {
             let action = match self.current_page {
-                Page::User => Message::UserCreate,
-                Page::Organization => Message::OrganizationCreate,
-                Page::Job => Message::JobCreate,
+                Page::User => Message::User(UserMessage::Create),
+                Page::Organization => Message::Organization(OrganizationMessage::Create),
+                Page::Job => Message::Job(JobMessage::Create),
                 Page::Settings => panic!("Invalid page state."),
             };
             row![button("Create").on_press(action)]
@@ -301,8 +308,10 @@ impl AppState {
     }
 
     fn settings_form(&self) -> Container<'_, Message> {
-        let theme_input =
-            pick_list(Theme::ALL, Some(&self.theme), Message::ThemeChanged).width(220);
+        let theme_input = pick_list(Theme::ALL, Some(&self.theme), |theme| {
+            Message::App(AppMessage::ThemeChanged(theme))
+        })
+        .width(220);
         container(column![theme_input]).width(FillPortion(4))
     }
 }

@@ -10,6 +10,16 @@ pub struct OrganizationService {
 }
 
 impl OrganizationService {
+    pub fn new(org_repo: Arc<dyn OrganizationRepository>) -> Self {
+        Self { org_repo }
+    }
+
+    pub async fn get_organization_by_id(
+        &self,
+        id: i64,
+    ) -> Result<Option<Organization>, OrganizationServiceError> {
+        Ok(self.org_repo.find_by_id(id).await?)
+    }
     pub async fn create_organization(
         &self,
         mut organization: Organization,
@@ -18,9 +28,15 @@ impl OrganizationService {
             .validate()
             .map_err(|_| OrganizationServiceError::ValidationError)?;
 
-        let job = self.org_repo.create(&organization).await?;
+        let org = self.org_repo.create(&organization).await?;
 
-        Ok(job)
+        Ok(org)
+    }
+
+    pub async fn get_all_organizations(
+        &self,
+    ) -> Result<Vec<Organization>, OrganizationServiceError> {
+        Ok(self.org_repo.find_all().await?)
     }
 }
 
