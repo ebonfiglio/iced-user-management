@@ -43,16 +43,16 @@ impl AppState {
         })
         .width(FillPortion(1));
 
-        let status_bar = container(text(&self.status_message().to_string()).size(12))
+        let status_bar = container(text(self.status_message().to_string()).size(12))
             .padding(5)
             .width(Length::Fill)
             .style(|theme: &Theme| container::Style {
                 text_color: Some(
-                    if self.status_message.contains("error")
-                        || self.status_message.contains("Error")
+                    if self.status_message().contains("error")
+                        || self.status_message().contains("Error")
                     {
                         theme.palette().danger
-                    } else if self.status_message.contains("connected") {
+                    } else if self.status_message().contains("connected") {
                         theme.palette().success
                     } else {
                         theme.palette().text
@@ -297,7 +297,7 @@ impl AppState {
             ]
             .spacing(10)
         } else {
-            let action = match self.current_page {
+            let action = match self.current_page() {
                 Page::User => Message::User(UserMessage::Create),
                 Page::Organization => Message::Organization(OrganizationMessage::Create),
                 Page::Job => Message::Job(JobMessage::Create),

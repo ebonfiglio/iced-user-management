@@ -23,6 +23,7 @@ pub struct AppState {
     status_message: String,
     pub user_service: Option<UserService>,
     pub job_service: Option<JobService>,
+    pub organization_service: Option<OrganizationService>,
 }
 
 impl AppState {
@@ -74,15 +75,20 @@ impl AppState {
                 let job_repo = Arc::new(JobSqliteRepository::new(pool.clone()));
                 let org_repo = Arc::new(OrganizationSqliteRepository::new(pool.clone()));
 
-                let user_service = UserService::new(user_repo, job_repo.clone(), org_repo);
+                let user_service = UserService::new(user_repo, job_repo.clone(), org_repo.clone());
                 let job_service = JobService::new(job_repo.clone());
+                let organization_service = OrganizationService::new(org_repo);
 
-                Ok::<(UserService, JobService), sqlx::Error>((user_service, job_service))
+                Ok::<(UserService, JobService, OrganizationService), sqlx::Error>((
+                    user_service,
+                    job_service,
+                    organization_service,
+                ))
             },
             |result| match result {
-                Ok((user_service, job_service)) => {
-                    Message::App(AppMessage::Initialized(user_service, job_service))
-                }
+                Ok((user_service, job_service, organization_service)) => Message::App(
+                    AppMessage::Initialized(user_service, job_service, organization_service),
+                ),
                 Err(e) => Message::App(AppMessage::InitializationError(e.to_string())),
             },
         );
@@ -97,6 +103,7 @@ impl AppState {
             status_message: String::from("Loading..."),
             user_service: None,
             job_service: None,
+            organization_service: None,
         };
 
         (state, task)
@@ -105,16 +112,26 @@ impl AppState {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::App(app_msg) => match app_msg {
-                AppMessage::Navigate(page) => self.set_current_page(page),
+                AppMessage::Navigate(page) => {
+                    self.set_current_page(page);
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Ready".to_string(),
+                    )));
+                }
                 AppMessage::ThemeChanged(theme) => {
                     self.theme = theme;
                 }
-                AppMessage::Initialized(user_service, job_service) => {
+                AppMessage::Initialized(user_service, job_service, organization_service) => {
                     self.user_service = Some(user_service);
                     self.job_service = Some(job_service);
-                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
-                    ));
+                    self.organization_service = Some(organization_service);
+                    return Task::batch(vec![
+                        Task::done(Message::Job(JobMessage::GetAll)),
+                        Task::done(Message::Organization(OrganizationMessage::GetAll)),
+                    ])
+                    .chain(Task::done(Message::App(
+                        AppMessage::SetStatusMessage("Ready".to_string()),
+                    )));
                 }
                 AppMessage::InitializationError(err) => self.status_message = err,
                 AppMessage::CancelEdit => {
@@ -245,7 +262,38 @@ impl AppState {
                         self.organizations.current = organization;
                     }
                 }
-                OrganizationMessage::Create => {}
+                OrganizationMessage::Create => match self.organizations.current.validate() {
+                    Ok(()) => {
+                        let organization_to_create = self.organizations.current.clone();
+                        if let Some(service) = &self.organization_service {
+                            let service = service.clone();
+                            return Task::perform(
+                                async move { service.create_organization(organization_to_create).await },
+                                |result| match result {
+                                    Ok(organization) => {
+                                        Message::Organization(OrganizationMessage::CreateSuccess)
+                                    }
+                                    Err(e) => Message::Organization(
+                                        OrganizationMessage::LoadError(e.to_string()),
+                                    ),
+                                },
+                            );
+                        } else {
+                            return Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "Service not initialized".to_string(),
+                            )));
+                        }
+                    }
+                    Err(msg) => {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                            "Validation Errors:\n{}",
+                            msg.iter()
+                                .map(|(key, value)| format!("  • {}: {}", key, value))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        ))));
+                    }
+                },
             },
             Message::User(user_msg) => match user_msg {
                 UserMessage::NameChanged(name) => {
