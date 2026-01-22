@@ -250,6 +250,25 @@ impl AppState {
                 }
             },
             Message::Organization(org_msg) => match org_msg {
+                OrganizationMessage::GetAll => {
+                    if let Some(service) = &self.organization_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.get_all_organizations().await },
+                            |result| match result {
+                                Ok(organizations) => Message::Organization(
+                                    OrganizationMessage::SetAll(organizations),
+                                ),
+                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
+                                    e.to_string(),
+                                )),
+                            },
+                        );
+                    }
+                }
+                OrganizationMessage::SetAll(organizations) => {
+                    self.organizations.list = organizations;
+                }
                 OrganizationMessage::Clicked(organization_id) => {
                     if let Some(organization) = self
                         .organizations
@@ -294,6 +313,43 @@ impl AppState {
                         ))));
                     }
                 },
+                OrganizationMessage::Load(id) => {
+                    if let Some(service) = &self.organization_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.get_organization_by_id(id).await },
+                            |result| match result {
+                                Ok(Some(organization)) => {
+                                    Message::Organization(OrganizationMessage::Loaded(organization))
+                                }
+                                Ok(None) => Message::Organization(OrganizationMessage::NotFound),
+                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
+                                    e.to_string(),
+                                )),
+                            },
+                        );
+                    } else {
+                        return Task::done(Message::Organization(OrganizationMessage::GetAll))
+                            .chain(Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "Service not initialized".to_string(),
+                            ))));
+                    }
+                }
+                OrganizationMessage::Update => {}
+                OrganizationMessage::Delete(id) => {}
+                OrganizationMessage::NotFound => {
+                    self.organizations.current = Organization::new();
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Organization not found".to_string(),
+                    )));
+                }
+                OrganizationMessage::LoadError(err) => {
+                    self.organizations.current = Organization::new();
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                        "Error loading organization: {}",
+                        err
+                    ))));
+                }
             },
             Message::User(user_msg) => match user_msg {
                 UserMessage::NameChanged(name) => {
