@@ -293,8 +293,14 @@ impl AppState {
 
     fn get_form_buttons(&self, is_edit: bool) -> Row<'_, Message> {
         if is_edit {
+            let action = match self.current_page() {
+                Page::User => Message::User(UserMessage::Update),
+                Page::Organization => Message::Organization(OrganizationMessage::Update),
+                Page::Job => Message::Job(JobMessage::Update),
+                Page::Settings => panic!("Invalid page state."),
+            };
             row![
-                button("Update").on_press(Message::User(UserMessage::Update)),
+                button("Update").on_press(action),
                 button("Cancel")
                     .style(button::danger)
                     .on_press(Message::App(AppMessage::CancelEdit))

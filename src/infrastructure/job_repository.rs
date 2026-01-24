@@ -82,6 +82,27 @@ impl JobRepository for JobSqliteRepository {
     }
 
     async fn update(&self, job: &Job) -> Result<(), RepositoryError> {
+        let name = job.name().to_string();
+        let id = job.id() as i64;
+
+        let rows_affected = sqlx::query!(
+            r#"
+            UPDATE jobs
+            SET name = ?
+            WHERE id = ?
+            "#,
+            name,
+            id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?
+        .rows_affected();
+
+        if rows_affected == 0 {
+            return Err(RepositoryError::NotFound);
+        }
+
         Ok(())
     }
 

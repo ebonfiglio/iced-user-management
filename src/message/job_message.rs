@@ -9,6 +9,7 @@ pub enum JobMessage {
     Create,
     CreateSuccess,
     Update,
+    UpdateSuccess,
     Delete(i64),
     Load(i64),
     Loaded(Job),

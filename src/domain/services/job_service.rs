@@ -32,6 +32,15 @@ impl JobService {
     pub async fn get_all_jobs(&self) -> Result<Vec<Job>, JobServiceError> {
         Ok(self.job_repo.find_all().await?)
     }
+
+    pub async fn update_job(&self, mut job: Job) -> Result<(), JobServiceError> {
+        job.validate()
+            .map_err(|_| JobServiceError::ValidationError)?;
+
+        self.job_repo.update(&job).await?;
+
+        Ok(())
+    }
 }
 
 impl std::fmt::Debug for JobService {
