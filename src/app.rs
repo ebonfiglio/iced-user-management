@@ -281,6 +281,50 @@ impl AppState {
                         self.organizations.current = organization;
                     }
                 }
+                OrganizationMessage::NameChanged(name) => {
+                    self.organizations.current.set_name(name);
+                    self.organizations.current.validate_property("name");
+                }
+                OrganizationMessage::Create => match self.organizations.current.validate() {
+                    Ok(()) => {
+                        let organization_to_create = self.organizations.current.clone();
+                        if let Some(service) = &self.organization_service {
+                            let service = service.clone();
+                            return Task::perform(
+                                async move { service.create_organization(organization_to_create).await },
+                                |result| match result {
+                                    Ok(job) => {
+                                        Message::Organization(OrganizationMessage::CreateSuccess)
+                                    }
+                                    Err(e) => Message::Organization(
+                                        OrganizationMessage::LoadError(e.to_string()),
+                                    ),
+                                },
+                            );
+                        } else {
+                            return Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "Service not initialized".to_string(),
+                            )));
+                        }
+                    }
+                    Err(msg) => {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                            "Validation Errors:\n{}",
+                            msg.iter()
+                                .map(|(key, value)| format!("  • {}: {}", key, value))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        ))));
+                    }
+                },
+                OrganizationMessage::CreateSuccess => {
+                    self.organizations.clear_entity_state();
+                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                        Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Ready".to_string(),
+                        ))),
+                    );
+                }
                 OrganizationMessage::Create => match self.organizations.current.validate() {
                     Ok(()) => {
                         let organization_to_create = self.organizations.current.clone();
@@ -334,6 +378,15 @@ impl AppState {
                                 "Service not initialized".to_string(),
                             ))));
                     }
+                }
+                OrganizationMessage::Loaded(organization) => {
+                    self.organizations.current = organization;
+                    self.organizations.is_edit = true;
+                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                        Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Job loaded".to_string(),
+                        ))),
+                    );
                 }
                 OrganizationMessage::Update => {}
                 OrganizationMessage::Delete(id) => {}

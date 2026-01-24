@@ -132,7 +132,7 @@ impl AppState {
     fn organization_form(&self) -> Container<'_, Message> {
         let name_input = column![
             text_input("Organization", &self.organizations.current.name())
-                .on_input(|name| Message::User(UserMessage::NameChanged(name))),
+                .on_input(|name| Message::Organization(OrganizationMessage::NameChanged(name))),
             if let Some(error) = self.organizations.current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
@@ -157,10 +157,14 @@ impl AppState {
                         text(organization.name().to_string()).width(Length::FillPortion(2)),
                         button("Edit")
                             .style(button::primary)
-                            .on_press(Message::User(UserMessage::Load(organization.id()))),
+                            .on_press(Message::Organization(OrganizationMessage::Load(
+                                organization.id()
+                            ))),
                         button("Delete")
                             .style(button::danger)
-                            .on_press(Message::User(UserMessage::Delete(organization.id()))),
+                            .on_press(Message::Organization(OrganizationMessage::Delete(
+                                organization.id()
+                            ))),
                     ]
                     .spacing(10)
                     .padding(5),
