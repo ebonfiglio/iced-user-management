@@ -81,6 +81,27 @@ impl OrganizationRepository for OrganizationSqliteRepository {
     }
 
     async fn update(&self, organization: &Organization) -> Result<(), RepositoryError> {
+        let name = organization.name().to_string();
+        let id = organization.id() as i64;
+
+        let rows_affected = sqlx::query!(
+            r#"
+            UPDATE organizations
+            SET name = ?
+            WHERE id = ?
+            "#,
+            name,
+            id,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?
+        .rows_affected();
+
+        if rows_affected == 0 {
+            return Err(RepositoryError::NotFound);
+        }
+
         Ok(())
     }
 

@@ -33,6 +33,19 @@ impl OrganizationService {
         Ok(org)
     }
 
+    pub async fn update_organization(
+        &self,
+        mut organization: Organization,
+    ) -> Result<(), OrganizationServiceError> {
+        organization
+            .validate()
+            .map_err(|_| OrganizationServiceError::ValidationError)?;
+
+        self.org_repo.update(&organization).await?;
+
+        Ok(())
+    }
+
     pub async fn get_all_organizations(
         &self,
     ) -> Result<Vec<Organization>, OrganizationServiceError> {
