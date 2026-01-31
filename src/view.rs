@@ -80,9 +80,9 @@ impl AppState {
 
     fn job_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("Job", &self.jobs.current.name())
+            text_input("Job", &self.get_job_entity_state().current.name())
                 .on_input(|name| Message::Job(JobMessage::NameChanged(name))),
-            if let Some(error) = self.jobs.current.errors().get("name") {
+            if let Some(error) = self.get_job_entity_state().current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -97,7 +97,7 @@ impl AppState {
             text("Name").width(Length::FillPortion(2)),
             text("Action")
         ];
-        let job_list = scrollable(self.jobs.list.iter().enumerate().fold(
+        let job_list = scrollable(self.get_job_entity_state().list.iter().enumerate().fold(
             column![header_row].spacing(2),
             |col, (_, job)| {
                 col.push(
@@ -121,7 +121,7 @@ impl AppState {
         container(
             column![
                 name_input,
-                self.get_form_buttons(self.jobs.is_edit),
+                self.get_form_buttons(self.get_job_entity_state().is_edit),
                 job_list
             ]
             .spacing(10),
@@ -131,9 +131,17 @@ impl AppState {
 
     fn organization_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("Organization", &self.organizations.current.name())
-                .on_input(|name| Message::Organization(OrganizationMessage::NameChanged(name))),
-            if let Some(error) = self.organizations.current.errors().get("name") {
+            text_input(
+                "Organization",
+                &self.get_organization_entity_state().current.name()
+            )
+            .on_input(|name| Message::Organization(OrganizationMessage::NameChanged(name))),
+            if let Some(error) = self
+                .get_organization_entity_state()
+                .current
+                .errors()
+                .get("name")
+            {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -148,35 +156,38 @@ impl AppState {
             text("Name").width(Length::FillPortion(2)),
             text("Action")
         ];
-        let organization_list = scrollable(self.organizations.list.iter().enumerate().fold(
-            column![header_row].spacing(2),
-            |col, (_, organization)| {
-                col.push(
-                    row![
-                        text(organization.id()).width(Length::FillPortion(1)),
-                        text(organization.name().to_string()).width(Length::FillPortion(2)),
-                        button("Edit")
-                            .style(button::primary)
-                            .on_press(Message::Organization(OrganizationMessage::Load(
-                                organization.id()
-                            ))),
-                        button("Delete")
-                            .style(button::danger)
-                            .on_press(Message::Organization(OrganizationMessage::Delete(
-                                organization.id()
-                            ))),
-                    ]
-                    .spacing(10)
-                    .padding(5),
-                )
-            },
-        ))
+        let organization_list = scrollable(
+            self.get_organization_entity_state()
+                .list
+                .iter()
+                .enumerate()
+                .fold(column![header_row].spacing(2), |col, (_, organization)| {
+                    col.push(
+                        row![
+                            text(organization.id()).width(Length::FillPortion(1)),
+                            text(organization.name().to_string()).width(Length::FillPortion(2)),
+                            button("Edit")
+                                .style(button::primary)
+                                .on_press(Message::Organization(OrganizationMessage::Load(
+                                    organization.id()
+                                ))),
+                            button("Delete")
+                                .style(button::danger)
+                                .on_press(Message::Organization(OrganizationMessage::Delete(
+                                    organization.id()
+                                ))),
+                        ]
+                        .spacing(10)
+                        .padding(5),
+                    )
+                }),
+        )
         .height(Length::Fill);
 
         container(
             column![
                 name_input,
-                self.get_form_buttons(self.organizations.is_edit),
+                self.get_form_buttons(self.get_organization_entity_state().is_edit),
                 organization_list
             ]
             .spacing(10),
@@ -186,9 +197,9 @@ impl AppState {
 
     fn user_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("User", &self.users.current.name())
+            text_input("User", &self.get_user_entity_state().current.name())
                 .on_input(|name| Message::User(UserMessage::NameChanged(name))),
-            if let Some(error) = self.users.current.errors().get("name") {
+            if let Some(error) = self.get_user_entity_state().current.errors().get("name") {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -200,14 +211,14 @@ impl AppState {
         ];
         let job_input = column![
             pick_list(
-                &self.jobs.list[..],
-                self.jobs
+                &self.get_job_entity_state().list[..],
+                self.get_job_entity_state()
                     .list
                     .iter()
-                    .find(|j| j.id() == self.users.current.job_id()),
+                    .find(|j| j.id() == self.get_user_entity_state().current.job_id()),
                 |job| Message::User(UserMessage::JobSelected(job)),
             ),
-            if let Some(error) = self.users.current.errors().get("job_id") {
+            if let Some(error) = self.get_user_entity_state().current.errors().get("job_id") {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -219,14 +230,19 @@ impl AppState {
         ];
         let organization_input = column![
             pick_list(
-                &self.organizations.list[..],
-                self.organizations
+                &self.get_organization_entity_state().list[..],
+                self.get_organization_entity_state()
                     .list
                     .iter()
-                    .find(|k| k.id() == self.users.current.organization_id()),
+                    .find(|k| k.id() == self.get_user_entity_state().current.organization_id()),
                 |org| Message::User(UserMessage::OrganizationSelected(org)),
             ),
-            if let Some(error) = self.users.current.errors().get("organization_id") {
+            if let Some(error) = self
+                .get_user_entity_state()
+                .current
+                .errors()
+                .get("organization_id")
+            {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -243,7 +259,7 @@ impl AppState {
             text("Organization").width(Length::FillPortion(2)),
             text("Action").width(Length::FillPortion(2)),
         ];
-        let user_list = scrollable(self.users.list.iter().enumerate().fold(
+        let user_list = scrollable(self.get_user_entity_state().list.iter().enumerate().fold(
             column![header_row].spacing(2),
             |col, (_, user)| {
                 let job_name = self.get_job_name(user.job_id());
@@ -283,7 +299,7 @@ impl AppState {
                 name_input,
                 job_input,
                 organization_input,
-                self.get_form_buttons(self.users.is_edit),
+                self.get_form_buttons(self.get_user_entity_state().is_edit),
                 user_list
             ]
             .spacing(10),
@@ -318,7 +334,7 @@ impl AppState {
     }
 
     fn settings_form(&self) -> Container<'_, Message> {
-        let theme_input = pick_list(Theme::ALL, Some(&self.theme), |theme| {
+        let theme_input = pick_list(Theme::ALL, Some(self.get_theme()), |theme| {
             Message::App(AppMessage::ThemeChanged(theme))
         })
         .width(220);

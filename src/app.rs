@@ -1,5 +1,3 @@
-use iced::{Task, Theme};
-
 use crate::domain::services::JobService;
 use crate::domain::services::OrganizationService;
 use crate::domain::{DomainEntity, Entity, Job, Organization, User, UserService};
@@ -11,19 +9,21 @@ use crate::message::{
     app_message::AppMessage, job_message::JobMessage, organization_message::OrganizationMessage,
     user_message::UserMessage, Message, Page,
 };
+use iced::{Task, Theme};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct AppState {
     current_page: Page,
-    pub active_entity: DomainEntity,
-    pub users: EntityState<User>,
-    pub organizations: EntityState<Organization>,
-    pub jobs: EntityState<Job>,
-    pub theme: Theme,
+    active_entity: DomainEntity,
+    users: EntityState<User>,
+    organizations: EntityState<Organization>,
+    jobs: EntityState<Job>,
+    theme: Theme,
     status_message: String,
-    pub user_service: Option<UserService>,
-    pub job_service: Option<JobService>,
-    pub organization_service: Option<OrganizationService>,
+    user_service: Option<UserService>,
+    job_service: Option<JobService>,
+    organization_service: Option<OrganizationService>,
 }
 
 impl AppState {
@@ -61,6 +61,22 @@ impl AppState {
             }
         }
     }
+
+    pub fn get_job_entity_state(&self) -> &EntityState<Job> {
+        &self.jobs
+    }
+
+    pub fn get_user_entity_state(&self) -> &EntityState<User> {
+        &self.users
+    }
+
+    pub fn get_organization_entity_state(&self) -> &EntityState<Organization> {
+        &self.organizations
+    }
+
+    pub fn get_theme(&self) -> &Theme {
+        &self.theme
+    }
 }
 
 impl AppState {
@@ -70,7 +86,7 @@ impl AppState {
                 let db_path = get_database_path();
                 let database = Database::new(db_path.to_str().unwrap()).await?;
 
-                let pool = database.pool;
+                let pool = database.get_pool();
                 let user_repo = Arc::new(UserSqliteRepository::new(pool.clone()));
                 let job_repo = Arc::new(JobSqliteRepository::new(pool.clone()));
                 let org_repo = Arc::new(OrganizationSqliteRepository::new(pool.clone()));
@@ -238,23 +254,26 @@ impl AppState {
                         Message::App(AppMessage::SetStatusMessage("Job loaded".to_string())),
                     ));
                 }
-                JobMessage::Update => {
-                    if let Some(service) = &self.job_service {
-                        let service = service.clone();
-                        let job = self.jobs.current.clone();
-                        return Task::perform(
-                            async move { service.update_job(job).await },
-                            |result| match result {
-                                Ok(()) => Message::Job(JobMessage::UpdateSuccess),
-                                Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Failed to update job".to_string(),
-                        )));
+                JobMessage::Update => match self.jobs.current.validate() {
+                    Ok(()) => {
+                        if let Some(service) = &self.job_service {
+                            let service = service.clone();
+                            let job = self.jobs.current.clone();
+                            return Task::perform(
+                                async move { service.update_job(job).await },
+                                |result| match result {
+                                    Ok(()) => Message::Job(JobMessage::UpdateSuccess),
+                                    Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
+                                },
+                            );
+                        } else {
+                            return Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "Failed to update job".to_string(),
+                            )));
+                        }
                     }
-                }
+                    Err(errors) => return AppState::set_validation_status_message(errors),
+                },
                 JobMessage::Delete(id) => {}
                 JobMessage::NotFound => {
                     self.jobs.current = Job::new();
@@ -322,15 +341,7 @@ impl AppState {
                             )));
                         }
                     }
-                    Err(msg) => {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
-                            "Validation Errors:\n{}",
-                            msg.iter()
-                                .map(|(key, value)| format!("  • {}: {}", key, value))
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        ))));
-                    }
+                    Err(errors) => return AppState::set_validation_status_message(errors),
                 },
                 OrganizationMessage::CreateSuccess => {
                     self.organizations.clear_entity_state();
@@ -371,7 +382,38 @@ impl AppState {
                         ))),
                     );
                 }
-                OrganizationMessage::Update => {}
+                OrganizationMessage::Update => match self.organizations.current.validate() {
+                    Ok(()) => {
+                        if let Some(service) = &self.organization_service {
+                            let service = service.clone();
+                            let organization_to_update = self.organizations.current.clone();
+                            return Task::perform(
+                                async move { service.update_organization(organization_to_update).await },
+                                |result| match result {
+                                    Ok(_) => {
+                                        Message::Organization(OrganizationMessage::UpdateSuccess)
+                                    }
+                                    Err(e) => Message::Organization(
+                                        OrganizationMessage::LoadError(e.to_string()),
+                                    ),
+                                },
+                            );
+                        } else {
+                            return Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "Service not initalized".to_string(),
+                            )));
+                        }
+                    }
+                    Err(errors) => return AppState::set_validation_status_message(errors),
+                },
+                OrganizationMessage::UpdateSuccess => {
+                    self.organizations.clear_entity_state();
+                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                        Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Ready".to_string(),
+                        ))),
+                    );
+                }
                 OrganizationMessage::Delete(id) => {}
                 OrganizationMessage::NotFound => {
                     self.organizations.current = Organization::new();
@@ -418,13 +460,34 @@ impl AppState {
                             )));
                         }
                     }
-                    Err(msg) => {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Validation Errors".to_string(),
-                        )));
-                    }
+                    Err(errors) => return AppState::set_validation_status_message(errors),
                 },
-                UserMessage::Update => {}
+                UserMessage::Update => match self.users.current.validate() {
+                    Ok(()) => {
+                        if let Some(service) = &self.user_service {
+                            let service = service.clone();
+                            let user = self.users.current.clone();
+                            return Task::perform(
+                                async move { service.update_user(user).await },
+                                |result| match result {
+                                    Ok(()) => Message::User(UserMessage::UpdateSuccess),
+                                    Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
+                                },
+                            );
+                        } else {
+                            return Task::done(Message::App(AppMessage::SetStatusMessage(
+                                "UserService not initialized".to_string(),
+                            )));
+                        }
+                    }
+                    Err(errors) => return AppState::set_validation_status_message(errors),
+                },
+                UserMessage::UpdateSuccess => {
+                    self.users.clear_entity_state();
+                    return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                    ));
+                }
                 UserMessage::Delete(id) => {}
                 UserMessage::Load(id) => {
                     if let Some(service) = &self.user_service {
@@ -499,5 +562,18 @@ impl AppState {
             .find(|o| o.id() == organization_id)
             .map(|o| o.name().to_string())
             .unwrap_or_else(|| "None".to_string())
+    }
+
+    pub fn set_validation_status_message(
+        errors: &HashMap<&'static str, &'static str>,
+    ) -> Task<Message> {
+        return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+            "Validation Errors:\n{}",
+            errors
+                .iter()
+                .map(|(key, value)| format!("  • {}: {}", key, value))
+                .collect::<Vec<_>>()
+                .join("\n")
+        ))));
     }
 }

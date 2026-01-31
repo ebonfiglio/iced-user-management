@@ -9,6 +9,5 @@ pub use entity::DomainEntity;
 pub use entity::Entity;
 pub use job::Job;
 pub use organization::Organization;
-pub use repositories::{JobRepository, OrganizationRepository, RepositoryError, UserRepository};
-pub use services::{UserService, UserServiceError};
+pub use services::UserService;
 pub use user::User;

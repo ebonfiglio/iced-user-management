@@ -1,5 +1,3 @@
-use iced::futures::future::ok;
-
 use crate::domain::{
     repositories::{JobRepository, RepositoryError},
     Entity, Job,

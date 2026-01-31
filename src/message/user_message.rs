@@ -9,6 +9,7 @@ pub enum UserMessage {
     OrganizationSelected(Organization),
     Create,
     Update,
+    UpdateSuccess,
     Delete(i64),
     Load(i64),
     Loaded(User),

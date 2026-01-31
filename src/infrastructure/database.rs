@@ -1,8 +1,8 @@
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
+use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use std::path::PathBuf;
 
 pub struct Database {
-    pub pool: SqlitePool,
+    pool: SqlitePool,
 }
 
 impl Database {
@@ -22,7 +22,7 @@ impl Database {
         Ok(Self { pool })
     }
 
-    pub fn pool(&self) -> &SqlitePool {
+    pub fn get_pool(&self) -> &SqlitePool {
         &self.pool
     }
 }

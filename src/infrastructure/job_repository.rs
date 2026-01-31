@@ -5,8 +5,6 @@ use crate::domain::{
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 
-use crate::domain::User;
-
 pub struct JobSqliteRepository {
     pool: SqlitePool,
 }
