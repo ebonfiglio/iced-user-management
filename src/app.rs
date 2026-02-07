@@ -9,6 +9,7 @@ use crate::message::{
     app_message::AppMessage, job_message::JobMessage, organization_message::OrganizationMessage,
     user_message::UserMessage, Message, Page,
 };
+use iced::alignment::Horizontal::Left;
 use iced::{Task, Theme};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -274,7 +275,28 @@ impl AppState {
                     }
                     Err(errors) => return AppState::set_validation_status_message(errors),
                 },
-                JobMessage::Delete(id) => {}
+                JobMessage::Delete(id) => {
+                    if let Some(service) = &self.job_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.delete_job(id).await },
+                            |result| match result {
+                                Ok(()) => Message::Job(JobMessage::DeleteSuccess),
+                                Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                            },
+                        );
+                    } else {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Failed to update job".to_string(),
+                        )));
+                    }
+                }
+                JobMessage::DeleteSuccess => {
+                    self.jobs.clear_entity_state();
+                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                    ));
+                }
                 JobMessage::NotFound => {
                     self.jobs.current = Job::new();
                     return Task::done(Message::App(AppMessage::SetStatusMessage(

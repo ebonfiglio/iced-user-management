@@ -11,6 +11,7 @@ pub enum JobMessage {
     Update,
     UpdateSuccess,
     Delete(i64),
+    DeleteSuccess,
     Load(i64),
     Loaded(Job),
     NotFound,

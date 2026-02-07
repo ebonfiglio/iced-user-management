@@ -39,6 +39,11 @@ impl JobService {
 
         Ok(())
     }
+
+    pub async fn delete_job(&self, id: i64) -> Result<(), JobServiceError> {
+        self.job_repo.delete(id).await?;
+        Ok(())
+    }
 }
 
 impl std::fmt::Debug for JobService {
