@@ -51,6 +51,11 @@ impl OrganizationService {
     ) -> Result<Vec<Organization>, OrganizationServiceError> {
         Ok(self.org_repo.find_all().await?)
     }
+
+    pub async fn delete_organization(&self, id: i64) -> Result<(), OrganizationServiceError> {
+        self.org_repo.delete(id).await?;
+        Ok(())
+    }
 }
 
 impl std::fmt::Debug for OrganizationService {

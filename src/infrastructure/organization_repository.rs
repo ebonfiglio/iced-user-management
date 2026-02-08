@@ -106,6 +106,28 @@ impl OrganizationRepository for OrganizationSqliteRepository {
     }
 
     async fn delete(&self, id: i64) -> Result<(), RepositoryError> {
-        Ok(())
+        let result = sqlx::query!(r#"DELETE FROM organizations where id = ?"#, id)
+            .execute(&self.pool)
+            .await;
+
+        match result {
+            Ok(query_result) => {
+                if query_result.rows_affected() == 0 {
+                    Err(RepositoryError::NotFound)
+                } else {
+                    Ok(())
+                }
+            }
+            Err(sqlx::Error::Database(db_err)) => {
+                if db_err.message().contains("FOREIGN KEY constraint failed") {
+                    Err(RepositoryError::ConstraintViolation(
+                        "Cannot delete job because it is assigned to one or more users".to_string(),
+                    ))
+                } else {
+                    Err(RepositoryError::DatabaseError(db_err.to_string()))
+                }
+            }
+            Err(e) => Err(RepositoryError::DatabaseError(e.to_string())),
+        }
     }
 }

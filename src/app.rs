@@ -436,7 +436,30 @@ impl AppState {
                         ))),
                     );
                 }
-                OrganizationMessage::Delete(id) => {}
+                OrganizationMessage::Delete(id) => {
+                    if let Some(service) = &self.organization_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.delete_organization(id).await },
+                            |result| match result {
+                                Ok(()) => Message::Organization(OrganizationMessage::DeleteSuccess),
+                                Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                            },
+                        );
+                    } else {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Failed to update organization".to_string(),
+                        )));
+                    }
+                }
+                OrganizationMessage::DeleteSuccess => {
+                    self.organizations.clear_entity_state();
+                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                        Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Ready".to_string(),
+                        ))),
+                    );
+                }
                 OrganizationMessage::NotFound => {
                     self.organizations.current = Organization::new();
                     return Task::done(Message::App(AppMessage::SetStatusMessage(
