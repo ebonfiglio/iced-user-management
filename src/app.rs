@@ -9,7 +9,6 @@ use crate::message::{
     app_message::AppMessage, job_message::JobMessage, organization_message::OrganizationMessage,
     user_message::UserMessage, Message, Page,
 };
-use iced::alignment::Horizontal::Left;
 use iced::{Task, Theme};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -495,7 +494,7 @@ impl AppState {
                             return Task::perform(
                                 async move { service.create_user(user_to_create).await },
                                 |result| match result {
-                                    Ok(user) => Message::User(UserMessage::Loaded(user)),
+                                    Ok(user) => Message::User(UserMessage::CreateSuccess),
                                     Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
                                 },
                             );
@@ -507,6 +506,12 @@ impl AppState {
                     }
                     Err(errors) => return AppState::set_validation_status_message(errors),
                 },
+                UserMessage::CreateSuccess => {
+                    self.users.clear_entity_state();
+                    return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                    ));
+                }
                 UserMessage::Update => match self.users.current.validate() {
                     Ok(()) => {
                         if let Some(service) = &self.user_service {
@@ -521,7 +526,7 @@ impl AppState {
                             );
                         } else {
                             return Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "UserService not initialized".to_string(),
+                                "Service not initialized".to_string(),
                             )));
                         }
                     }
@@ -533,7 +538,28 @@ impl AppState {
                         Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
                     ));
                 }
-                UserMessage::Delete(id) => {}
+                UserMessage::Delete(id) => {
+                    if let Some(service) = &self.user_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.delete_user(id).await },
+                            |result| match result {
+                                Ok(()) => Message::User(UserMessage::DeleteSuccess),
+                                Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                            },
+                        );
+                    } else {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Service not initialized".to_string(),
+                        )));
+                    }
+                }
+                UserMessage::DeleteSuccess => {
+                    self.users.clear_entity_state();
+                    return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                    ));
+                }
                 UserMessage::Load(id) => {
                     if let Some(service) = &self.user_service {
                         let service = service.clone();
