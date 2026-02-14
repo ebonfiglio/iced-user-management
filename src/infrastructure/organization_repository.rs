@@ -121,7 +121,8 @@ impl OrganizationRepository for OrganizationSqliteRepository {
             Err(sqlx::Error::Database(db_err)) => {
                 if db_err.message().contains("FOREIGN KEY constraint failed") {
                     Err(RepositoryError::ConstraintViolation(
-                        "Cannot delete job because it is assigned to one or more users".to_string(),
+                        "Cannot delete organization because it is assigned to one or more users"
+                            .to_string(),
                     ))
                 } else {
                     Err(RepositoryError::DatabaseError(db_err.to_string()))

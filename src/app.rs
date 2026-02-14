@@ -127,425 +127,89 @@ impl AppState {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::App(app_msg) => match app_msg {
-                AppMessage::Navigate(page) => {
-                    self.set_current_page(page);
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Ready".to_string(),
-                    )));
+            Message::App(app_msg) => self.handle_app_message(app_msg),
+            Message::Job(job_msg) => self.handle_job_message(job_msg),
+            Message::Organization(org_msg) => self.handle_organization_message(org_msg),
+            Message::User(user_msg) => self.handle_user_message(user_msg),
+        }
+    }
+
+    fn handle_app_message(&mut self, msg: AppMessage) -> Task<Message> {
+        match msg {
+            AppMessage::Navigate(page) => {
+                self.set_current_page(page);
+                return Task::done(Message::App(AppMessage::SetStatusMessage(
+                    "Ready".to_string(),
+                )));
+            }
+            AppMessage::ThemeChanged(theme) => {
+                self.theme = theme;
+            }
+            AppMessage::Initialized(user_service, job_service, organization_service) => {
+                self.user_service = Some(user_service);
+                self.job_service = Some(job_service);
+                self.organization_service = Some(organization_service);
+                return Task::batch(vec![
+                    Task::done(Message::Job(JobMessage::GetAll)),
+                    Task::done(Message::Organization(OrganizationMessage::GetAll)),
+                    Task::done(Message::User(UserMessage::GetAll)),
+                ])
+                .chain(Task::done(Message::App(AppMessage::SetStatusMessage(
+                    "Ready".to_string(),
+                ))));
+            }
+            AppMessage::InitializationError(err) => self.status_message = err,
+            AppMessage::CancelEdit => {
+                match self.current_page {
+                    Page::User => self.users.clear_entity_state(),
+                    Page::Job => self.jobs.clear_entity_state(),
+                    Page::Organization => self.organizations.clear_entity_state(),
+                    _ => {}
+                };
+                return Task::done(Message::App(AppMessage::SetStatusMessage(
+                    "Ready".to_string(),
+                )));
+            }
+            AppMessage::SetStatusMessage(msg) => self.set_status_message(msg),
+        }
+
+        Task::none()
+    }
+
+    fn handle_job_message(&mut self, msg: JobMessage) -> Task<Message> {
+        match msg {
+            JobMessage::GetAll => {
+                if let Some(service) = &self.job_service {
+                    let service = service.clone();
+                    return Task::perform(async move { service.get_all_jobs().await }, |result| {
+                        match result {
+                            Ok(jobs) => Message::Job(JobMessage::SetAll(jobs)),
+                            Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
+                        }
+                    });
                 }
-                AppMessage::ThemeChanged(theme) => {
-                    self.theme = theme;
-                }
-                AppMessage::Initialized(user_service, job_service, organization_service) => {
-                    self.user_service = Some(user_service);
-                    self.job_service = Some(job_service);
-                    self.organization_service = Some(organization_service);
-                    return Task::batch(vec![
-                        Task::done(Message::Job(JobMessage::GetAll)),
-                        Task::done(Message::Organization(OrganizationMessage::GetAll)),
-                        Task::done(Message::User(UserMessage::GetAll)),
-                    ])
-                    .chain(Task::done(Message::App(
-                        AppMessage::SetStatusMessage("Ready".to_string()),
-                    )));
-                }
-                AppMessage::InitializationError(err) => self.status_message = err,
-                AppMessage::CancelEdit => {
-                    match self.current_page {
-                        Page::User => self.users.clear_entity_state(),
-                        Page::Job => self.jobs.clear_entity_state(),
-                        Page::Organization => self.organizations.clear_entity_state(),
-                        _ => {}
-                    };
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Ready".to_string(),
-                    )));
-                }
-                AppMessage::SetStatusMessage(msg) => self.set_status_message(msg),
-            },
-            Message::Job(job_msg) => match job_msg {
-                JobMessage::GetAll => {
+            }
+            JobMessage::SetAll(jobs) => {
+                self.jobs.list = jobs;
+            }
+            JobMessage::Clicked(job_id) => {
+                self.set_current_page(Page::Job);
+                return Task::done(Message::Job(JobMessage::Load(job_id)));
+            }
+            JobMessage::NameChanged(name) => {
+                self.jobs.current.set_name(name);
+                self.jobs.current.validate_property("name");
+            }
+            JobMessage::Create => match self.jobs.current.validate() {
+                Ok(()) => {
+                    let job_to_create = self.jobs.current.clone();
                     if let Some(service) = &self.job_service {
                         let service = service.clone();
                         return Task::perform(
-                            async move { service.get_all_jobs().await },
+                            async move { service.create_job(job_to_create).await },
                             |result| match result {
-                                Ok(jobs) => Message::Job(JobMessage::SetAll(jobs)),
+                                Ok(_) => Message::Job(JobMessage::CreateSuccess),
                                 Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                            },
-                        );
-                    }
-                }
-                JobMessage::SetAll(jobs) => {
-                    self.jobs.list = jobs;
-                }
-                JobMessage::Clicked(job_id) => {
-                    self.set_current_page(Page::Job);
-                    return Task::done(Message::Job(JobMessage::Load(job_id)));
-                }
-                JobMessage::NameChanged(name) => {
-                    self.jobs.current.set_name(name);
-                    self.jobs.current.validate_property("name");
-                }
-                JobMessage::Create => match self.jobs.current.validate() {
-                    Ok(()) => {
-                        let job_to_create = self.jobs.current.clone();
-                        if let Some(service) = &self.job_service {
-                            let service = service.clone();
-                            return Task::perform(
-                                async move { service.create_job(job_to_create).await },
-                                |result| match result {
-                                    Ok(job) => Message::Job(JobMessage::CreateSuccess),
-                                    Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                                },
-                            );
-                        } else {
-                            return Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "Service not initialized".to_string(),
-                            )));
-                        }
-                    }
-                    Err(msg) => {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
-                            "Validation Errors:\n{}",
-                            msg.iter()
-                                .map(|(key, value)| format!("  • {}: {}", key, value))
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        ))));
-                    }
-                },
-                JobMessage::CreateSuccess => {
-                    self.jobs.clear_entity_state();
-                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
-                    ));
-                }
-                JobMessage::UpdateSuccess => {
-                    self.jobs.clear_entity_state();
-                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
-                    ));
-                }
-                JobMessage::Load(id) => {
-                    if let Some(service) = &self.job_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.get_job_by_id(id).await },
-                            |result| match result {
-                                Ok(Some(job)) => Message::Job(JobMessage::Loaded(job)),
-                                Ok(None) => Message::Job(JobMessage::NotFound),
-                                Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
-                            Message::App(AppMessage::SetStatusMessage(
-                                "Service not initialized".to_string(),
-                            )),
-                        ));
-                    }
-                }
-                JobMessage::Loaded(job) => {
-                    self.jobs.current = job;
-                    self.jobs.is_edit = true;
-                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Job loaded".to_string())),
-                    ));
-                }
-                JobMessage::Update => match self.jobs.current.validate() {
-                    Ok(()) => {
-                        if let Some(service) = &self.job_service {
-                            let service = service.clone();
-                            let job = self.jobs.current.clone();
-                            return Task::perform(
-                                async move { service.update_job(job).await },
-                                |result| match result {
-                                    Ok(()) => Message::Job(JobMessage::UpdateSuccess),
-                                    Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                                },
-                            );
-                        } else {
-                            return Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "Failed to update job".to_string(),
-                            )));
-                        }
-                    }
-                    Err(errors) => return AppState::set_validation_status_message(errors),
-                },
-                JobMessage::Delete(id) => {
-                    if let Some(service) = &self.job_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.delete_job(id).await },
-                            |result| match result {
-                                Ok(()) => Message::Job(JobMessage::DeleteSuccess),
-                                Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Failed to update job".to_string(),
-                        )));
-                    }
-                }
-                JobMessage::DeleteSuccess => {
-                    self.jobs.clear_entity_state();
-                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
-                    ));
-                }
-                JobMessage::NotFound => {
-                    self.jobs.current = Job::new();
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Job not found".to_string(),
-                    )));
-                }
-                JobMessage::LoadError(err) => {
-                    self.jobs.current = Job::new();
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
-                        "Error loading job: {}",
-                        err
-                    ))));
-                }
-            },
-            Message::Organization(org_msg) => match org_msg {
-                OrganizationMessage::GetAll => {
-                    if let Some(service) = &self.organization_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.get_all_organizations().await },
-                            |result| match result {
-                                Ok(organizations) => Message::Organization(
-                                    OrganizationMessage::SetAll(organizations),
-                                ),
-                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
-                                    e.to_string(),
-                                )),
-                            },
-                        );
-                    }
-                }
-                OrganizationMessage::SetAll(organizations) => {
-                    self.organizations.list = organizations;
-                }
-                OrganizationMessage::Clicked(organization_id) => {
-                    self.set_current_page(Page::Organization);
-                    return Task::done(Message::Organization(OrganizationMessage::Load(
-                        organization_id,
-                    )));
-                }
-                OrganizationMessage::NameChanged(name) => {
-                    self.organizations.current.set_name(name);
-                    self.organizations.current.validate_property("name");
-                }
-                OrganizationMessage::Create => match self.organizations.current.validate() {
-                    Ok(()) => {
-                        let organization_to_create = self.organizations.current.clone();
-                        if let Some(service) = &self.organization_service {
-                            let service = service.clone();
-                            return Task::perform(
-                                async move { service.create_organization(organization_to_create).await },
-                                |result| match result {
-                                    Ok(job) => {
-                                        Message::Organization(OrganizationMessage::CreateSuccess)
-                                    }
-                                    Err(e) => Message::Organization(
-                                        OrganizationMessage::LoadError(e.to_string()),
-                                    ),
-                                },
-                            );
-                        } else {
-                            return Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "Service not initialized".to_string(),
-                            )));
-                        }
-                    }
-                    Err(errors) => return AppState::set_validation_status_message(errors),
-                },
-                OrganizationMessage::CreateSuccess => {
-                    self.organizations.clear_entity_state();
-                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
-                        Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Ready".to_string(),
-                        ))),
-                    );
-                }
-                OrganizationMessage::Load(id) => {
-                    if let Some(service) = &self.organization_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.get_organization_by_id(id).await },
-                            |result| match result {
-                                Ok(Some(organization)) => {
-                                    Message::Organization(OrganizationMessage::Loaded(organization))
-                                }
-                                Ok(None) => Message::Organization(OrganizationMessage::NotFound),
-                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
-                                    e.to_string(),
-                                )),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::Organization(OrganizationMessage::GetAll))
-                            .chain(Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "Service not initialized".to_string(),
-                            ))));
-                    }
-                }
-                OrganizationMessage::Loaded(organization) => {
-                    self.organizations.current = organization;
-                    self.organizations.is_edit = true;
-                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
-                        Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Organization loaded".to_string(),
-                        ))),
-                    );
-                }
-                OrganizationMessage::Update => match self.organizations.current.validate() {
-                    Ok(()) => {
-                        if let Some(service) = &self.organization_service {
-                            let service = service.clone();
-                            let organization_to_update = self.organizations.current.clone();
-                            return Task::perform(
-                                async move { service.update_organization(organization_to_update).await },
-                                |result| match result {
-                                    Ok(_) => {
-                                        Message::Organization(OrganizationMessage::UpdateSuccess)
-                                    }
-                                    Err(e) => Message::Organization(
-                                        OrganizationMessage::LoadError(e.to_string()),
-                                    ),
-                                },
-                            );
-                        } else {
-                            return Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "Service not initalized".to_string(),
-                            )));
-                        }
-                    }
-                    Err(errors) => return AppState::set_validation_status_message(errors),
-                },
-                OrganizationMessage::UpdateSuccess => {
-                    self.organizations.clear_entity_state();
-                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
-                        Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Ready".to_string(),
-                        ))),
-                    );
-                }
-                OrganizationMessage::Delete(id) => {
-                    if let Some(service) = &self.organization_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.delete_organization(id).await },
-                            |result| match result {
-                                Ok(()) => Message::Organization(OrganizationMessage::DeleteSuccess),
-                                Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Failed to update organization".to_string(),
-                        )));
-                    }
-                }
-                OrganizationMessage::DeleteSuccess => {
-                    self.organizations.clear_entity_state();
-                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
-                        Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Ready".to_string(),
-                        ))),
-                    );
-                }
-                OrganizationMessage::NotFound => {
-                    self.organizations.current = Organization::new();
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Organization not found".to_string(),
-                    )));
-                }
-                OrganizationMessage::LoadError(err) => {
-                    self.organizations.current = Organization::new();
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
-                        "Error loading organization: {}",
-                        err
-                    ))));
-                }
-            },
-            Message::User(user_msg) => match user_msg {
-                UserMessage::NameChanged(name) => {
-                    self.users.current.set_name(name);
-                    self.users.current.validate_property("name");
-                }
-                UserMessage::JobSelected(job) => {
-                    self.users.current.set_job_id(job.id());
-                    self.users.current.validate_property("job_id");
-                }
-                UserMessage::OrganizationSelected(organization) => {
-                    self.users.current.set_organization_id(organization.id());
-                    self.users.current.validate_property("organization_id");
-                }
-                UserMessage::Create => match self.users.current.validate() {
-                    Ok(()) => {
-                        let user_to_create = self.users.current.clone();
-                        if let Some(service) = &self.user_service {
-                            let service = service.clone();
-                            return Task::perform(
-                                async move { service.create_user(user_to_create).await },
-                                |result| match result {
-                                    Ok(user) => Message::User(UserMessage::CreateSuccess),
-                                    Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
-                                },
-                            );
-                        } else {
-                            return Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "Service not initialized".to_string(),
-                            )));
-                        }
-                    }
-                    Err(errors) => return AppState::set_validation_status_message(errors),
-                },
-                UserMessage::CreateSuccess => {
-                    self.users.clear_entity_state();
-                    return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
-                    ));
-                }
-                UserMessage::Update => match self.users.current.validate() {
-                    Ok(()) => {
-                        if let Some(service) = &self.user_service {
-                            let service = service.clone();
-                            let user = self.users.current.clone();
-                            return Task::perform(
-                                async move { service.update_user(user).await },
-                                |result| match result {
-                                    Ok(()) => Message::User(UserMessage::UpdateSuccess),
-                                    Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
-                                },
-                            );
-                        } else {
-                            return Task::done(Message::App(AppMessage::SetStatusMessage(
-                                "Service not initialized".to_string(),
-                            )));
-                        }
-                    }
-                    Err(errors) => return AppState::set_validation_status_message(errors),
-                },
-                UserMessage::UpdateSuccess => {
-                    self.users.clear_entity_state();
-                    return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
-                    ));
-                }
-                UserMessage::Delete(id) => {
-                    if let Some(service) = &self.user_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.delete_user(id).await },
-                            |result| match result {
-                                Ok(()) => Message::User(UserMessage::DeleteSuccess),
-                                Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
                             },
                         );
                     } else {
@@ -554,65 +218,415 @@ impl AppState {
                         )));
                     }
                 }
-                UserMessage::DeleteSuccess => {
-                    self.users.clear_entity_state();
-                    return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                Err(msg) => {
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                        "Validation Errors:\n{}",
+                        msg.iter()
+                            .map(|(key, value)| format!("  • {}: {}", key, value))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    ))));
+                }
+            },
+            JobMessage::CreateSuccess => {
+                self.jobs.clear_entity_state();
+                return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                ));
+            }
+            JobMessage::UpdateSuccess => {
+                self.jobs.clear_entity_state();
+                return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                ));
+            }
+            JobMessage::Load(id) => {
+                if let Some(service) = &self.job_service {
+                    let service = service.clone();
+                    return Task::perform(
+                        async move { service.get_job_by_id(id).await },
+                        |result| match result {
+                            Ok(Some(job)) => Message::Job(JobMessage::Loaded(job)),
+                            Ok(None) => Message::Job(JobMessage::NotFound),
+                            Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
+                        },
+                    );
+                } else {
+                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                        Message::App(AppMessage::SetStatusMessage(
+                            "Service not initialized".to_string(),
+                        )),
                     ));
                 }
-                UserMessage::Load(id) => {
+            }
+            JobMessage::Loaded(job) => {
+                self.jobs.current = job;
+                self.jobs.is_edit = true;
+                return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("Job loaded".to_string())),
+                ));
+            }
+            JobMessage::Update => match self.jobs.current.validate() {
+                Ok(()) => {
+                    if let Some(service) = &self.job_service {
+                        let service = service.clone();
+                        let job = self.jobs.current.clone();
+                        return Task::perform(
+                            async move { service.update_job(job).await },
+                            |result| match result {
+                                Ok(()) => Message::Job(JobMessage::UpdateSuccess),
+                                Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
+                            },
+                        );
+                    } else {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Failed to update job".to_string(),
+                        )));
+                    }
+                }
+                Err(errors) => return AppState::set_validation_status_message(errors),
+            },
+            JobMessage::Delete(id) => {
+                if let Some(service) = &self.job_service {
+                    let service = service.clone();
+                    return Task::perform(async move { service.delete_job(id).await }, |result| {
+                        match result {
+                            Ok(()) => Message::Job(JobMessage::DeleteSuccess),
+                            Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                        }
+                    });
+                } else {
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Failed to update job".to_string(),
+                    )));
+                }
+            }
+            JobMessage::DeleteSuccess => {
+                self.jobs.clear_entity_state();
+                return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                ));
+            }
+            JobMessage::NotFound => {
+                self.jobs.current = Job::new();
+                return Task::done(Message::App(AppMessage::SetStatusMessage(
+                    "Job not found".to_string(),
+                )));
+            }
+            JobMessage::LoadError(err) => {
+                self.jobs.current = Job::new();
+                return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                    "Error loading job: {}",
+                    err
+                ))));
+            }
+        }
+
+        Task::none()
+    }
+
+    fn handle_organization_message(&mut self, msg: OrganizationMessage) -> Task<Message> {
+        match msg {
+            OrganizationMessage::GetAll => {
+                if let Some(service) = &self.organization_service {
+                    let service = service.clone();
+                    return Task::perform(
+                        async move { service.get_all_organizations().await },
+                        |result| match result {
+                            Ok(organizations) => {
+                                Message::Organization(OrganizationMessage::SetAll(organizations))
+                            }
+                            Err(e) => {
+                                Message::Organization(OrganizationMessage::LoadError(e.to_string()))
+                            }
+                        },
+                    );
+                }
+            }
+            OrganizationMessage::SetAll(organizations) => {
+                self.organizations.list = organizations;
+            }
+            OrganizationMessage::Clicked(organization_id) => {
+                self.set_current_page(Page::Organization);
+                return Task::done(Message::Organization(OrganizationMessage::Load(
+                    organization_id,
+                )));
+            }
+            OrganizationMessage::NameChanged(name) => {
+                self.organizations.current.set_name(name);
+                self.organizations.current.validate_property("name");
+            }
+            OrganizationMessage::Create => match self.organizations.current.validate() {
+                Ok(()) => {
+                    let organization_to_create = self.organizations.current.clone();
+                    if let Some(service) = &self.organization_service {
+                        let service = service.clone();
+                        return Task::perform(
+                            async move { service.create_organization(organization_to_create).await },
+                            |result| match result {
+                                Ok(_) => Message::Organization(OrganizationMessage::CreateSuccess),
+                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
+                                    e.to_string(),
+                                )),
+                            },
+                        );
+                    } else {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Service not initialized".to_string(),
+                        )));
+                    }
+                }
+                Err(errors) => return AppState::set_validation_status_message(errors),
+            },
+            OrganizationMessage::CreateSuccess => {
+                self.organizations.clear_entity_state();
+                return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                    Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Ready".to_string(),
+                    ))),
+                );
+            }
+            OrganizationMessage::Load(id) => {
+                if let Some(service) = &self.organization_service {
+                    let service = service.clone();
+                    return Task::perform(
+                        async move { service.get_organization_by_id(id).await },
+                        |result| match result {
+                            Ok(Some(organization)) => {
+                                Message::Organization(OrganizationMessage::Loaded(organization))
+                            }
+                            Ok(None) => Message::Organization(OrganizationMessage::NotFound),
+                            Err(e) => {
+                                Message::Organization(OrganizationMessage::LoadError(e.to_string()))
+                            }
+                        },
+                    );
+                } else {
+                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                        Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Service not initialized".to_string(),
+                        ))),
+                    );
+                }
+            }
+            OrganizationMessage::Loaded(organization) => {
+                self.organizations.current = organization;
+                self.organizations.is_edit = true;
+                return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                    Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Organization loaded".to_string(),
+                    ))),
+                );
+            }
+            OrganizationMessage::Update => match self.organizations.current.validate() {
+                Ok(()) => {
+                    if let Some(service) = &self.organization_service {
+                        let service = service.clone();
+                        let organization_to_update = self.organizations.current.clone();
+                        return Task::perform(
+                            async move { service.update_organization(organization_to_update).await },
+                            |result| match result {
+                                Ok(_) => Message::Organization(OrganizationMessage::UpdateSuccess),
+                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
+                                    e.to_string(),
+                                )),
+                            },
+                        );
+                    } else {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Service not initalized".to_string(),
+                        )));
+                    }
+                }
+                Err(errors) => return AppState::set_validation_status_message(errors),
+            },
+            OrganizationMessage::UpdateSuccess => {
+                self.organizations.clear_entity_state();
+                return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                    Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Ready".to_string(),
+                    ))),
+                );
+            }
+            OrganizationMessage::Delete(id) => {
+                if let Some(service) = &self.organization_service {
+                    let service = service.clone();
+                    return Task::perform(
+                        async move { service.delete_organization(id).await },
+                        |result| match result {
+                            Ok(()) => Message::Organization(OrganizationMessage::DeleteSuccess),
+                            Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                        },
+                    );
+                } else {
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Failed to update organization".to_string(),
+                    )));
+                }
+            }
+            OrganizationMessage::DeleteSuccess => {
+                self.organizations.clear_entity_state();
+                return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
+                    Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Ready".to_string(),
+                    ))),
+                );
+            }
+            OrganizationMessage::NotFound => {
+                self.organizations.current = Organization::new();
+                return Task::done(Message::App(AppMessage::SetStatusMessage(
+                    "Organization not found".to_string(),
+                )));
+            }
+            OrganizationMessage::LoadError(err) => {
+                self.organizations.current = Organization::new();
+                return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                    "Error loading organization: {}",
+                    err
+                ))));
+            }
+        }
+        Task::none()
+    }
+
+    fn handle_user_message(&mut self, msg: UserMessage) -> Task<Message> {
+        match msg {
+            UserMessage::NameChanged(name) => {
+                self.users.current.set_name(name);
+                self.users.current.validate_property("name");
+            }
+            UserMessage::JobSelected(job) => {
+                self.users.current.set_job_id(job.id());
+                self.users.current.validate_property("job_id");
+            }
+            UserMessage::OrganizationSelected(organization) => {
+                self.users.current.set_organization_id(organization.id());
+                self.users.current.validate_property("organization_id");
+            }
+            UserMessage::Create => match self.users.current.validate() {
+                Ok(()) => {
+                    let user_to_create = self.users.current.clone();
                     if let Some(service) = &self.user_service {
                         let service = service.clone();
                         return Task::perform(
-                            async move { service.get_user_by_id(id).await },
+                            async move { service.create_user(user_to_create).await },
                             |result| match result {
-                                Ok(Some(user)) => Message::User(UserMessage::Loaded(user)),
-                                Ok(None) => Message::User(UserMessage::NotFound),
+                                Ok(_) => Message::User(UserMessage::CreateSuccess),
                                 Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
                             },
                         );
                     } else {
                         return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "UserService not initialized".to_string(),
+                            "Service not initialized".to_string(),
                         )));
                     }
                 }
-                UserMessage::Loaded(user) => {
-                    self.users.current = user;
-                    self.users.is_edit = true;
-                    return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage("User loaded".to_string())),
-                    ));
-                }
-                UserMessage::NotFound => {
-                    self.users.current = User::new();
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "User not found".to_string(),
-                    )));
-                }
-                UserMessage::LoadError(err) => {
-                    self.users.current = User::new();
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
-                        "Error loading user: {}",
-                        err
-                    ))));
-                }
-                UserMessage::GetAll => {
+                Err(errors) => return AppState::set_validation_status_message(errors),
+            },
+            UserMessage::CreateSuccess => {
+                self.users.clear_entity_state();
+                return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                ));
+            }
+            UserMessage::Update => match self.users.current.validate() {
+                Ok(()) => {
                     if let Some(service) = &self.user_service {
                         let service = service.clone();
+                        let user = self.users.current.clone();
                         return Task::perform(
-                            async move { service.get_all_users().await },
+                            async move { service.update_user(user).await },
                             |result| match result {
-                                Ok(users) => Message::User(UserMessage::SetAll(users)),
+                                Ok(()) => Message::User(UserMessage::UpdateSuccess),
                                 Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
                             },
                         );
+                    } else {
+                        return Task::done(Message::App(AppMessage::SetStatusMessage(
+                            "Service not initialized".to_string(),
+                        )));
                     }
                 }
-                UserMessage::SetAll(users) => {
-                    self.users.list = users;
-                }
+                Err(errors) => return AppState::set_validation_status_message(errors),
             },
+            UserMessage::UpdateSuccess => {
+                self.users.clear_entity_state();
+                return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                ));
+            }
+            UserMessage::Delete(id) => {
+                if let Some(service) = &self.user_service {
+                    let service = service.clone();
+                    return Task::perform(async move { service.delete_user(id).await }, |result| {
+                        match result {
+                            Ok(()) => Message::User(UserMessage::DeleteSuccess),
+                            Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                        }
+                    });
+                } else {
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "Service not initialized".to_string(),
+                    )));
+                }
+            }
+            UserMessage::DeleteSuccess => {
+                self.users.clear_entity_state();
+                return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
+                ));
+            }
+            UserMessage::Load(id) => {
+                if let Some(service) = &self.user_service {
+                    let service = service.clone();
+                    return Task::perform(
+                        async move { service.get_user_by_id(id).await },
+                        |result| match result {
+                            Ok(Some(user)) => Message::User(UserMessage::Loaded(user)),
+                            Ok(None) => Message::User(UserMessage::NotFound),
+                            Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
+                        },
+                    );
+                } else {
+                    return Task::done(Message::App(AppMessage::SetStatusMessage(
+                        "UserService not initialized".to_string(),
+                    )));
+                }
+            }
+            UserMessage::Loaded(user) => {
+                self.users.current = user;
+                self.users.is_edit = true;
+                return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
+                    Message::App(AppMessage::SetStatusMessage("User loaded".to_string())),
+                ));
+            }
+            UserMessage::NotFound => {
+                self.users.current = User::new();
+                return Task::done(Message::App(AppMessage::SetStatusMessage(
+                    "User not found".to_string(),
+                )));
+            }
+            UserMessage::LoadError(err) => {
+                self.users.current = User::new();
+                return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
+                    "Error loading user: {}",
+                    err
+                ))));
+            }
+            UserMessage::GetAll => {
+                if let Some(service) = &self.user_service {
+                    let service = service.clone();
+                    return Task::perform(async move { service.get_all_users().await }, |result| {
+                        match result {
+                            Ok(users) => Message::User(UserMessage::SetAll(users)),
+                            Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
+                        }
+                    });
+                }
+            }
+            UserMessage::SetAll(users) => {
+                self.users.list = users;
+            }
         }
         Task::none()
     }

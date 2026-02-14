@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::Entity;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct User {
     id: i64,
     name: String,
@@ -58,10 +58,10 @@ impl Entity for User {
         self.errors.clear();
         if self.name.trim().is_empty() {
             self.errors.insert("name", "Name is required");
-        } else if self.name.len() < 3 {
+        } else if self.name.chars().count() < 3 {
             self.errors
                 .insert("name", "Name must be at least 3 characters");
-        } else if self.name.len() > 50 {
+        } else if self.name.chars().count() > 50 {
             self.errors
                 .insert("name", "Name must be under 50 characters");
         }
@@ -82,16 +82,16 @@ impl Entity for User {
         }
     }
 
-    fn validate_property(&mut self, propery: &str) {
-        match propery {
+    fn validate_property(&mut self, property: &str) {
+        match property {
             "name" => {
                 self.errors.remove("name");
                 if self.name.trim().is_empty() {
                     self.errors.insert("name", "Name is required");
-                } else if self.name.len() < 3 {
+                } else if self.name.chars().count() < 3 {
                     self.errors
                         .insert("name", "Name must be at least 3 characters");
-                } else if self.name.len() > 50 {
+                } else if self.name.chars().count() > 50 {
                     self.errors
                         .insert("name", "Name must be under 50 characters");
                 }

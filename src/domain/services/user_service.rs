@@ -97,9 +97,6 @@ pub enum UserServiceError {
     #[error("Organization not found")]
     OrganizationNotFound,
 
-    #[error("User not found")]
-    UserNotFound,
-
     #[error("Database error: {0}")]
     RepositoryError(#[from] RepositoryError),
 }

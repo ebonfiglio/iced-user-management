@@ -47,17 +47,13 @@ impl AppState {
             .padding(5)
             .width(Length::Fill)
             .style(|theme: &Theme| container::Style {
-                text_color: Some(
-                    if self.status_message().contains("error")
-                        || self.status_message().contains("Error")
-                    {
-                        theme.palette().danger
-                    } else if self.status_message().contains("connected") {
-                        theme.palette().success
-                    } else {
-                        theme.palette().text
-                    },
-                ),
+                text_color: Some(if self.status_message().to_lowercase().contains("error") {
+                    theme.palette().danger
+                } else if self.status_message().to_lowercase().contains("connected") {
+                    theme.palette().success
+                } else {
+                    theme.palette().text
+                }),
                 ..Default::default()
             });
 
