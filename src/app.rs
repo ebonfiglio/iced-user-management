@@ -1,6 +1,6 @@
 use crate::domain::services::JobService;
 use crate::domain::services::OrganizationService;
-use crate::domain::{DomainEntity, Entity, Job, Organization, User, UserService};
+use crate::domain::{Entity, Job, Organization, User, UserService};
 use crate::infrastructure::job_repository::JobSqliteRepository;
 use crate::infrastructure::organization_repository::OrganizationSqliteRepository;
 use crate::infrastructure::user_repository::UserSqliteRepository;
@@ -15,7 +15,6 @@ use std::sync::Arc;
 
 pub struct AppState {
     current_page: Page,
-    active_entity: DomainEntity,
     users: EntityState<User>,
     organizations: EntityState<Organization>,
     jobs: EntityState<Job>,
@@ -43,21 +42,17 @@ impl AppState {
             Page::User => {
                 self.users.clear_entity_state();
                 self.current_page = Page::User;
-                self.active_entity = DomainEntity::User;
             }
             Page::Job => {
                 self.jobs.clear_entity_state();
                 self.current_page = Page::Job;
-                self.active_entity = DomainEntity::Job;
             }
             Page::Organization => {
                 self.organizations.clear_entity_state();
                 self.current_page = Page::Organization;
-                self.active_entity = DomainEntity::Organization;
             }
             Page::Settings => {
                 self.current_page = Page::Settings;
-                self.active_entity = DomainEntity::None;
             }
         }
     }
@@ -111,7 +106,6 @@ impl AppState {
 
         let state = Self {
             current_page: Page::User,
-            active_entity: DomainEntity::User,
             users: EntityState::new(),
             organizations: EntityState::new(),
             jobs: EntityState::new(),
@@ -218,15 +212,7 @@ impl AppState {
                         )));
                     }
                 }
-                Err(msg) => {
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
-                        "Validation Errors:\n{}",
-                        msg.iter()
-                            .map(|(key, value)| format!("  • {}: {}", key, value))
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    ))));
-                }
+                Err(errors) => return AppState::set_validation_status_message(errors),
             },
             JobMessage::CreateSuccess => {
                 self.jobs.clear_entity_state();
@@ -297,7 +283,7 @@ impl AppState {
                     });
                 } else {
                     return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Failed to update job".to_string(),
+                        "Service not initialized".to_string(),
                     )));
                 }
             }
@@ -460,7 +446,7 @@ impl AppState {
                     );
                 } else {
                     return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Failed to update organization".to_string(),
+                        "Service not initialized".to_string(),
                     )));
                 }
             }

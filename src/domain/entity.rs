@@ -10,10 +10,3 @@ pub trait Entity: Clone + Default + std::fmt::Debug {
     fn validate_property(&mut self, property: &str);
     fn clear_errors(&mut self);
 }
-
-pub enum DomainEntity {
-    User,
-    Job,
-    Organization,
-    None,
-}

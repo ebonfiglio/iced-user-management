@@ -304,15 +304,18 @@ impl AppState {
     }
 
     fn get_form_buttons(&self, is_edit: bool) -> Row<'_, Message> {
+        let update_button = button("Update");
         if is_edit {
-            let action = match self.current_page() {
-                Page::User => Message::User(UserMessage::Update),
-                Page::Organization => Message::Organization(OrganizationMessage::Update),
-                Page::Job => Message::Job(JobMessage::Update),
-                Page::Settings => panic!("Invalid page state."),
+            let update_button_with_action = match self.current_page() {
+                Page::User => update_button.on_press(Message::User(UserMessage::Update)),
+                Page::Organization => {
+                    update_button.on_press(Message::Organization(OrganizationMessage::Update))
+                }
+                Page::Job => update_button.on_press(Message::Job(JobMessage::Update)),
+                Page::Settings => update_button,
             };
             row![
-                button("Update").on_press(action),
+                update_button_with_action,
                 button("Cancel")
                     .style(button::danger)
                     .on_press(Message::App(AppMessage::CancelEdit))
