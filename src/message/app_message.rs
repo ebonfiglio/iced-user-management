@@ -1,13 +1,6 @@
 use crate::domain::services::{JobService, OrganizationService, UserService};
+use crate::page::Page;
 use iced::Theme;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Page {
-    User,
-    Organization,
-    Job,
-    Settings,
-}
 
 #[derive(Debug, Clone)]
 pub enum AppMessage {

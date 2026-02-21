@@ -2,6 +2,7 @@ mod app;
 mod domain;
 mod infrastructure;
 mod message;
+mod page;
 mod view;
 
 use app::AppState;

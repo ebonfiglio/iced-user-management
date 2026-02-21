@@ -9,8 +9,9 @@ use crate::app::AppState;
 use crate::domain::Entity;
 use crate::message::{
     app_message::AppMessage, job_message::JobMessage, organization_message::OrganizationMessage,
-    user_message::UserMessage, Message, Page,
+    user_message::UserMessage, Message,
 };
+use crate::page::Page;
 
 impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
@@ -76,9 +77,9 @@ impl AppState {
 
     fn job_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("Job", &self.get_job_entity_state().current.name())
+            text_input("Job", &self.get_job_entity_state().current().name())
                 .on_input(|name| Message::Job(JobMessage::NameChanged(name))),
-            if let Some(error) = self.get_job_entity_state().current.errors().get("name") {
+            if let Some(error) = self.get_job_entity_state().current().errors().get("name") {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -93,7 +94,7 @@ impl AppState {
             text("Name").width(Length::FillPortion(2)),
             text("Action")
         ];
-        let job_list = scrollable(self.get_job_entity_state().list.iter().enumerate().fold(
+        let job_list = scrollable(self.get_job_entity_state().list().iter().enumerate().fold(
             column![header_row].spacing(2),
             |col, (_, job)| {
                 col.push(
@@ -117,7 +118,7 @@ impl AppState {
         container(
             column![
                 name_input,
-                self.get_form_buttons(self.get_job_entity_state().is_edit),
+                self.get_form_buttons(self.get_job_entity_state().is_edit()),
                 job_list
             ]
             .spacing(10),
@@ -129,12 +130,12 @@ impl AppState {
         let name_input = column![
             text_input(
                 "Organization",
-                &self.get_organization_entity_state().current.name()
+                &self.get_organization_entity_state().current().name()
             )
             .on_input(|name| Message::Organization(OrganizationMessage::NameChanged(name))),
             if let Some(error) = self
                 .get_organization_entity_state()
-                .current
+                .current()
                 .errors()
                 .get("name")
             {
@@ -154,7 +155,7 @@ impl AppState {
         ];
         let organization_list = scrollable(
             self.get_organization_entity_state()
-                .list
+                .list()
                 .iter()
                 .enumerate()
                 .fold(column![header_row].spacing(2), |col, (_, organization)| {
@@ -183,7 +184,7 @@ impl AppState {
         container(
             column![
                 name_input,
-                self.get_form_buttons(self.get_organization_entity_state().is_edit),
+                self.get_form_buttons(self.get_organization_entity_state().is_edit()),
                 organization_list
             ]
             .spacing(10),
@@ -193,9 +194,9 @@ impl AppState {
 
     fn user_form(&self) -> Container<'_, Message> {
         let name_input = column![
-            text_input("User", &self.get_user_entity_state().current.name())
+            text_input("User", &self.get_user_entity_state().current().name())
                 .on_input(|name| Message::User(UserMessage::NameChanged(name))),
-            if let Some(error) = self.get_user_entity_state().current.errors().get("name") {
+            if let Some(error) = self.get_user_entity_state().current().errors().get("name") {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -207,14 +208,19 @@ impl AppState {
         ];
         let job_input = column![
             pick_list(
-                &self.get_job_entity_state().list[..],
+                &self.get_job_entity_state().list()[..],
                 self.get_job_entity_state()
-                    .list
+                    .list()
                     .iter()
-                    .find(|j| j.id() == self.get_user_entity_state().current.job_id()),
+                    .find(|j| j.id() == self.get_user_entity_state().current().job_id()),
                 |job| Message::User(UserMessage::JobSelected(job)),
             ),
-            if let Some(error) = self.get_user_entity_state().current.errors().get("job_id") {
+            if let Some(error) = self
+                .get_user_entity_state()
+                .current()
+                .errors()
+                .get("job_id")
+            {
                 text(error.to_string())
                     .size(12)
                     .style(|_theme| text::Style {
@@ -226,16 +232,16 @@ impl AppState {
         ];
         let organization_input = column![
             pick_list(
-                &self.get_organization_entity_state().list[..],
+                &self.get_organization_entity_state().list()[..],
                 self.get_organization_entity_state()
-                    .list
+                    .list()
                     .iter()
-                    .find(|k| k.id() == self.get_user_entity_state().current.organization_id()),
+                    .find(|k| k.id() == self.get_user_entity_state().current().organization_id()),
                 |org| Message::User(UserMessage::OrganizationSelected(org)),
             ),
             if let Some(error) = self
                 .get_user_entity_state()
-                .current
+                .current()
                 .errors()
                 .get("organization_id")
             {
@@ -255,7 +261,7 @@ impl AppState {
             text("Organization").width(Length::FillPortion(2)),
             text("Action").width(Length::FillPortion(2)),
         ];
-        let user_list = scrollable(self.get_user_entity_state().list.iter().enumerate().fold(
+        let user_list = scrollable(self.get_user_entity_state().list().iter().enumerate().fold(
             column![header_row].spacing(2),
             |col, (_, user)| {
                 let job_name = self.get_job_name(user.job_id());
@@ -295,7 +301,7 @@ impl AppState {
                 name_input,
                 job_input,
                 organization_input,
-                self.get_form_buttons(self.get_user_entity_state().is_edit),
+                self.get_form_buttons(self.get_user_entity_state().is_edit()),
                 user_list
             ]
             .spacing(10),

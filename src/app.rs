@@ -7,8 +7,9 @@ use crate::infrastructure::user_repository::UserSqliteRepository;
 use crate::infrastructure::{get_database_path, Database, EntityState};
 use crate::message::{
     app_message::AppMessage, job_message::JobMessage, organization_message::OrganizationMessage,
-    user_message::UserMessage, Message, Page,
+    user_message::UserMessage, Message,
 };
+use crate::page::Page;
 use iced::{Task, Theme};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -184,19 +185,19 @@ impl AppState {
                 }
             }
             JobMessage::SetAll(jobs) => {
-                self.jobs.list = jobs;
+                self.jobs.set_list(jobs);
             }
             JobMessage::Clicked(job_id) => {
                 self.set_current_page(Page::Job);
                 return Task::done(Message::Job(JobMessage::Load(job_id)));
             }
             JobMessage::NameChanged(name) => {
-                self.jobs.current.set_name(name);
-                self.jobs.current.validate_property("name");
+                self.jobs.current_mut().set_name(name);
+                self.jobs.current_mut().validate_property("name");
             }
-            JobMessage::Create => match self.jobs.current.validate() {
+            JobMessage::Create => match self.jobs.current_mut().validate() {
                 Ok(()) => {
-                    let job_to_create = self.jobs.current.clone();
+                    let job_to_create = self.jobs.current().clone();
                     if let Some(service) = &self.job_service {
                         let service = service.clone();
                         return Task::perform(
@@ -246,17 +247,17 @@ impl AppState {
                 }
             }
             JobMessage::Loaded(job) => {
-                self.jobs.current = job;
-                self.jobs.is_edit = true;
+                self.jobs.set_current(job);
+                self.jobs.set_is_edit(true);
                 return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
                     Message::App(AppMessage::SetStatusMessage("Job loaded".to_string())),
                 ));
             }
-            JobMessage::Update => match self.jobs.current.validate() {
+            JobMessage::Update => match self.jobs.current_mut().validate() {
                 Ok(()) => {
                     if let Some(service) = &self.job_service {
                         let service = service.clone();
-                        let job = self.jobs.current.clone();
+                        let job = self.jobs.current().clone();
                         return Task::perform(
                             async move { service.update_job(job).await },
                             |result| match result {
@@ -294,13 +295,13 @@ impl AppState {
                 ));
             }
             JobMessage::NotFound => {
-                self.jobs.current = Job::new();
+                self.jobs.set_current(Job::new());
                 return Task::done(Message::App(AppMessage::SetStatusMessage(
                     "Job not found".to_string(),
                 )));
             }
             JobMessage::LoadError(err) => {
-                self.jobs.current = Job::new();
+                self.jobs.set_current(Job::new());
                 return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
                     "Error loading job: {}",
                     err
@@ -330,7 +331,7 @@ impl AppState {
                 }
             }
             OrganizationMessage::SetAll(organizations) => {
-                self.organizations.list = organizations;
+                self.organizations.set_list(organizations);
             }
             OrganizationMessage::Clicked(organization_id) => {
                 self.set_current_page(Page::Organization);
@@ -339,12 +340,12 @@ impl AppState {
                 )));
             }
             OrganizationMessage::NameChanged(name) => {
-                self.organizations.current.set_name(name);
-                self.organizations.current.validate_property("name");
+                self.organizations.current_mut().set_name(name);
+                self.organizations.current_mut().validate_property("name");
             }
-            OrganizationMessage::Create => match self.organizations.current.validate() {
+            OrganizationMessage::Create => match self.organizations.current_mut().validate() {
                 Ok(()) => {
-                    let organization_to_create = self.organizations.current.clone();
+                    let organization_to_create = self.organizations.current().clone();
                     if let Some(service) = &self.organization_service {
                         let service = service.clone();
                         return Task::perform(
@@ -396,19 +397,19 @@ impl AppState {
                 }
             }
             OrganizationMessage::Loaded(organization) => {
-                self.organizations.current = organization;
-                self.organizations.is_edit = true;
+                self.organizations.set_current(organization);
+                self.organizations.set_is_edit(true);
                 return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
                     Task::done(Message::App(AppMessage::SetStatusMessage(
                         "Organization loaded".to_string(),
                     ))),
                 );
             }
-            OrganizationMessage::Update => match self.organizations.current.validate() {
+            OrganizationMessage::Update => match self.organizations.current_mut().validate() {
                 Ok(()) => {
                     if let Some(service) = &self.organization_service {
                         let service = service.clone();
-                        let organization_to_update = self.organizations.current.clone();
+                        let organization_to_update = self.organizations.current().clone();
                         return Task::perform(
                             async move { service.update_organization(organization_to_update).await },
                             |result| match result {
@@ -459,13 +460,13 @@ impl AppState {
                 );
             }
             OrganizationMessage::NotFound => {
-                self.organizations.current = Organization::new();
+                self.organizations.set_current(Organization::new());
                 return Task::done(Message::App(AppMessage::SetStatusMessage(
                     "Organization not found".to_string(),
                 )));
             }
             OrganizationMessage::LoadError(err) => {
-                self.organizations.current = Organization::new();
+                self.organizations.set_current(Organization::new());
                 return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
                     "Error loading organization: {}",
                     err
@@ -478,20 +479,24 @@ impl AppState {
     fn handle_user_message(&mut self, msg: UserMessage) -> Task<Message> {
         match msg {
             UserMessage::NameChanged(name) => {
-                self.users.current.set_name(name);
-                self.users.current.validate_property("name");
+                self.users.current_mut().set_name(name);
+                self.users.current_mut().validate_property("name");
             }
             UserMessage::JobSelected(job) => {
-                self.users.current.set_job_id(job.id());
-                self.users.current.validate_property("job_id");
+                self.users.current_mut().set_job_id(job.id());
+                self.users.current_mut().validate_property("job_id");
             }
             UserMessage::OrganizationSelected(organization) => {
-                self.users.current.set_organization_id(organization.id());
-                self.users.current.validate_property("organization_id");
+                self.users
+                    .current_mut()
+                    .set_organization_id(organization.id());
+                self.users
+                    .current_mut()
+                    .validate_property("organization_id");
             }
-            UserMessage::Create => match self.users.current.validate() {
+            UserMessage::Create => match self.users.current_mut().validate() {
                 Ok(()) => {
-                    let user_to_create = self.users.current.clone();
+                    let user_to_create = self.users.current().clone();
                     if let Some(service) = &self.user_service {
                         let service = service.clone();
                         return Task::perform(
@@ -515,11 +520,11 @@ impl AppState {
                     Message::App(AppMessage::SetStatusMessage("Ready".to_string())),
                 ));
             }
-            UserMessage::Update => match self.users.current.validate() {
+            UserMessage::Update => match self.users.current_mut().validate() {
                 Ok(()) => {
                     if let Some(service) = &self.user_service {
                         let service = service.clone();
-                        let user = self.users.current.clone();
+                        let user = self.users.current().clone();
                         return Task::perform(
                             async move { service.update_user(user).await },
                             |result| match result {
@@ -580,20 +585,20 @@ impl AppState {
                 }
             }
             UserMessage::Loaded(user) => {
-                self.users.current = user;
-                self.users.is_edit = true;
+                self.users.set_current(user);
+                self.users.set_is_edit(true);
                 return Task::done(Message::User(UserMessage::GetAll)).chain(Task::done(
                     Message::App(AppMessage::SetStatusMessage("User loaded".to_string())),
                 ));
             }
             UserMessage::NotFound => {
-                self.users.current = User::new();
+                self.users.set_current(User::new());
                 return Task::done(Message::App(AppMessage::SetStatusMessage(
                     "User not found".to_string(),
                 )));
             }
             UserMessage::LoadError(err) => {
-                self.users.current = User::new();
+                self.users.set_current(User::new());
                 return Task::done(Message::App(AppMessage::SetStatusMessage(format!(
                     "Error loading user: {}",
                     err
@@ -611,7 +616,7 @@ impl AppState {
                 }
             }
             UserMessage::SetAll(users) => {
-                self.users.list = users;
+                self.users.set_list(users);
             }
         }
         Task::none()
@@ -619,7 +624,7 @@ impl AppState {
 
     pub fn get_job_name(&self, job_id: i64) -> String {
         self.jobs
-            .list
+            .list()
             .iter()
             .find(|j| j.id() == job_id)
             .map(|j| j.name().to_string())
@@ -628,7 +633,7 @@ impl AppState {
 
     pub fn get_organization_name(&self, organization_id: i64) -> String {
         self.organizations
-            .list
+            .list()
             .iter()
             .find(|o| o.id() == organization_id)
             .map(|o| o.name().to_string())
