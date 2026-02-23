@@ -13,7 +13,8 @@ impl Database {
 
         let options = SqliteConnectOptions::new()
             .filename(database_path)
-            .create_if_missing(true);
+            .create_if_missing(true)
+            .pragma("foreign_keys", "ON");
 
         let pool = SqlitePool::connect_with(options).await?;
 

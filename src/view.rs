@@ -328,13 +328,16 @@ impl AppState {
             ]
             .spacing(10)
         } else {
-            let action = match self.current_page() {
-                Page::User => Message::User(UserMessage::Create),
-                Page::Organization => Message::Organization(OrganizationMessage::Create),
-                Page::Job => Message::Job(JobMessage::Create),
-                Page::Settings => panic!("Invalid page state."),
+            let create_button = match self.current_page() {
+                Page::User => row![button("Create").on_press(Message::User(UserMessage::Create))],
+                Page::Organization => {
+                    row![button("Create")
+                        .on_press(Message::Organization(OrganizationMessage::Create))]
+                }
+                Page::Job => row![button("Create").on_press(Message::Job(JobMessage::Create))],
+                Page::Settings => row![button("Create")],
             };
-            row![button("Create").on_press(action)]
+            create_button
         }
     }
 
