@@ -14,67 +14,23 @@ use iced::{Task, Theme};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub struct AppState {
+pub enum AppState {
+    Loading,
+    Ready(ReadyState),
+    Error(String),
+}
+
+pub struct ReadyState {
+    user_service: UserService,
+    job_service: JobService,
+    organization_service: OrganizationService,
     current_page: Page,
     users: EntityState<User>,
     organizations: EntityState<Organization>,
     jobs: EntityState<Job>,
     theme: Theme,
     status_message: String,
-    user_service: Option<UserService>,
-    job_service: Option<JobService>,
-    organization_service: Option<OrganizationService>,
 }
-
-impl AppState {
-    pub fn status_message(&self) -> &str {
-        &self.status_message
-    }
-    pub fn set_status_message(&mut self, message: String) {
-        self.status_message = message;
-    }
-
-    pub fn current_page(&self) -> Page {
-        self.current_page
-    }
-
-    pub fn set_current_page(&mut self, page: Page) {
-        match page {
-            Page::User => {
-                self.users.clear_entity_state();
-                self.current_page = Page::User;
-            }
-            Page::Job => {
-                self.jobs.clear_entity_state();
-                self.current_page = Page::Job;
-            }
-            Page::Organization => {
-                self.organizations.clear_entity_state();
-                self.current_page = Page::Organization;
-            }
-            Page::Settings => {
-                self.current_page = Page::Settings;
-            }
-        }
-    }
-
-    pub fn get_job_entity_state(&self) -> &EntityState<Job> {
-        &self.jobs
-    }
-
-    pub fn get_user_entity_state(&self) -> &EntityState<User> {
-        &self.users
-    }
-
-    pub fn get_organization_entity_state(&self) -> &EntityState<Organization> {
-        &self.organizations
-    }
-
-    pub fn get_theme(&self) -> &Theme {
-        &self.theme
-    }
-}
-
 impl AppState {
     pub fn new() -> (Self, Task<Message>) {
         let task = Task::perform(
@@ -105,22 +61,57 @@ impl AppState {
             },
         );
 
-        let state = Self {
-            current_page: Page::User,
-            users: EntityState::new(),
-            organizations: EntityState::new(),
-            jobs: EntityState::new(),
-            theme: Theme::Dark,
-            status_message: String::from("Loading..."),
-            user_service: None,
-            job_service: None,
-            organization_service: None,
-        };
-
-        (state, task)
+        (AppState::Loading, task)
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        match self {
+            AppState::Loading => {
+                if let Message::App(AppMessage::Initialized(
+                    user_service,
+                    job_service,
+                    organization_service,
+                )) = message
+                {
+                    *self = AppState::Ready(ReadyState {
+                        user_service,
+                        job_service,
+                        organization_service,
+                        current_page: Page::User,
+                        users: EntityState::new(),
+                        organizations: EntityState::new(),
+                        jobs: EntityState::new(),
+                        theme: Theme::Dark,
+                        status_message: "Ready".to_string(),
+                    });
+                    return Task::batch(vec![
+                        Task::done(Message::Job(JobMessage::GetAll)),
+                        Task::done(Message::Organization(OrganizationMessage::GetAll)),
+                        Task::done(Message::User(UserMessage::GetAll)),
+                    ]);
+                } else if let Message::App(AppMessage::InitializationError(err)) = message {
+                    *self = AppState::Error(err);
+                    return Task::none();
+                } else {
+                    return Task::none();
+                }
+            }
+            AppState::Ready(ready_state) => ready_state.handle_message(message),
+            AppState::Error(err) => Task::done(Message::App(AppMessage::InitializationError(
+                err.to_string(),
+            ))),
+        }
+    }
+    pub fn get_theme(&self) -> &Theme {
+        match self {
+            AppState::Ready(state) => &state.theme,
+            _ => &Theme::Dark,
+        }
+    }
+}
+
+impl ReadyState {
+    fn handle_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::App(app_msg) => self.handle_app_message(app_msg),
             Message::Job(job_msg) => self.handle_job_message(job_msg),
@@ -128,7 +119,6 @@ impl AppState {
             Message::User(user_msg) => self.handle_user_message(user_msg),
         }
     }
-
     fn handle_app_message(&mut self, msg: AppMessage) -> Task<Message> {
         match msg {
             AppMessage::Navigate(page) => {
@@ -141,9 +131,9 @@ impl AppState {
                 self.theme = theme;
             }
             AppMessage::Initialized(user_service, job_service, organization_service) => {
-                self.user_service = Some(user_service);
-                self.job_service = Some(job_service);
-                self.organization_service = Some(organization_service);
+                self.user_service = user_service;
+                self.job_service = job_service;
+                self.organization_service = organization_service;
                 return Task::batch(vec![
                     Task::done(Message::Job(JobMessage::GetAll)),
                     Task::done(Message::Organization(OrganizationMessage::GetAll)),
@@ -174,15 +164,13 @@ impl AppState {
     fn handle_job_message(&mut self, msg: JobMessage) -> Task<Message> {
         match msg {
             JobMessage::GetAll => {
-                if let Some(service) = &self.job_service {
-                    let service = service.clone();
-                    return Task::perform(async move { service.get_all_jobs().await }, |result| {
-                        match result {
-                            Ok(jobs) => Message::Job(JobMessage::SetAll(jobs)),
-                            Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                        }
-                    });
-                }
+                let service = self.job_service.clone();
+                return Task::perform(async move { service.get_all_jobs().await }, |result| {
+                    match result {
+                        Ok(jobs) => Message::Job(JobMessage::SetAll(jobs)),
+                        Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
+                    }
+                });
             }
             JobMessage::SetAll(jobs) => {
                 self.jobs.set_list(jobs);
@@ -198,22 +186,16 @@ impl AppState {
             JobMessage::Create => match self.jobs.current_mut().validate() {
                 Ok(()) => {
                     let job_to_create = self.jobs.current().clone();
-                    if let Some(service) = &self.job_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.create_job(job_to_create).await },
-                            |result| match result {
-                                Ok(_) => Message::Job(JobMessage::CreateSuccess),
-                                Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Service not initialized".to_string(),
-                        )));
-                    }
+                    let service = self.job_service.clone();
+                    return Task::perform(
+                        async move { service.create_job(job_to_create).await },
+                        |result| match result {
+                            Ok(_) => Message::Job(JobMessage::CreateSuccess),
+                            Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
+                        },
+                    );
                 }
-                Err(errors) => return AppState::set_validation_status_message(errors),
+                Err(errors) => return ReadyState::set_validation_status_message(errors),
             },
             JobMessage::CreateSuccess => {
                 self.jobs.clear_entity_state();
@@ -228,23 +210,14 @@ impl AppState {
                 ));
             }
             JobMessage::Load(id) => {
-                if let Some(service) = &self.job_service {
-                    let service = service.clone();
-                    return Task::perform(
-                        async move { service.get_job_by_id(id).await },
-                        |result| match result {
-                            Ok(Some(job)) => Message::Job(JobMessage::Loaded(job)),
-                            Ok(None) => Message::Job(JobMessage::NotFound),
-                            Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                        },
-                    );
-                } else {
-                    return Task::done(Message::Job(JobMessage::GetAll)).chain(Task::done(
-                        Message::App(AppMessage::SetStatusMessage(
-                            "Service not initialized".to_string(),
-                        )),
-                    ));
-                }
+                let service = self.job_service.clone();
+                return Task::perform(async move { service.get_job_by_id(id).await }, |result| {
+                    match result {
+                        Ok(Some(job)) => Message::Job(JobMessage::Loaded(job)),
+                        Ok(None) => Message::Job(JobMessage::NotFound),
+                        Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
+                    }
+                });
             }
             JobMessage::Loaded(job) => {
                 self.jobs.set_current(job);
@@ -255,38 +228,25 @@ impl AppState {
             }
             JobMessage::Update => match self.jobs.current_mut().validate() {
                 Ok(()) => {
-                    if let Some(service) = &self.job_service {
-                        let service = service.clone();
-                        let job = self.jobs.current().clone();
-                        return Task::perform(
-                            async move { service.update_job(job).await },
-                            |result| match result {
-                                Ok(()) => Message::Job(JobMessage::UpdateSuccess),
-                                Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Failed to update job".to_string(),
-                        )));
-                    }
-                }
-                Err(errors) => return AppState::set_validation_status_message(errors),
-            },
-            JobMessage::Delete(id) => {
-                if let Some(service) = &self.job_service {
-                    let service = service.clone();
-                    return Task::perform(async move { service.delete_job(id).await }, |result| {
+                    let service = self.job_service.clone();
+                    let job = self.jobs.current().clone();
+                    return Task::perform(async move { service.update_job(job).await }, |result| {
                         match result {
-                            Ok(()) => Message::Job(JobMessage::DeleteSuccess),
-                            Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                            Ok(()) => Message::Job(JobMessage::UpdateSuccess),
+                            Err(e) => Message::Job(JobMessage::LoadError(e.to_string())),
                         }
                     });
-                } else {
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Service not initialized".to_string(),
-                    )));
                 }
+                Err(errors) => return ReadyState::set_validation_status_message(errors),
+            },
+            JobMessage::Delete(id) => {
+                let service = self.job_service.clone();
+                return Task::perform(async move { service.delete_job(id).await }, |result| {
+                    match result {
+                        Ok(()) => Message::Job(JobMessage::DeleteSuccess),
+                        Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                    }
+                });
             }
             JobMessage::DeleteSuccess => {
                 self.jobs.clear_entity_state();
@@ -315,20 +275,18 @@ impl AppState {
     fn handle_organization_message(&mut self, msg: OrganizationMessage) -> Task<Message> {
         match msg {
             OrganizationMessage::GetAll => {
-                if let Some(service) = &self.organization_service {
-                    let service = service.clone();
-                    return Task::perform(
-                        async move { service.get_all_organizations().await },
-                        |result| match result {
-                            Ok(organizations) => {
-                                Message::Organization(OrganizationMessage::SetAll(organizations))
-                            }
-                            Err(e) => {
-                                Message::Organization(OrganizationMessage::LoadError(e.to_string()))
-                            }
-                        },
-                    );
-                }
+                let service = self.organization_service.clone();
+                return Task::perform(
+                    async move { service.get_all_organizations().await },
+                    |result| match result {
+                        Ok(organizations) => {
+                            Message::Organization(OrganizationMessage::SetAll(organizations))
+                        }
+                        Err(e) => {
+                            Message::Organization(OrganizationMessage::LoadError(e.to_string()))
+                        }
+                    },
+                );
             }
             OrganizationMessage::SetAll(organizations) => {
                 self.organizations.set_list(organizations);
@@ -346,24 +304,18 @@ impl AppState {
             OrganizationMessage::Create => match self.organizations.current_mut().validate() {
                 Ok(()) => {
                     let organization_to_create = self.organizations.current().clone();
-                    if let Some(service) = &self.organization_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.create_organization(organization_to_create).await },
-                            |result| match result {
-                                Ok(_) => Message::Organization(OrganizationMessage::CreateSuccess),
-                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
-                                    e.to_string(),
-                                )),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Service not initialized".to_string(),
-                        )));
-                    }
+                    let service = self.organization_service.clone();
+                    return Task::perform(
+                        async move { service.create_organization(organization_to_create).await },
+                        |result| match result {
+                            Ok(_) => Message::Organization(OrganizationMessage::CreateSuccess),
+                            Err(e) => {
+                                Message::Organization(OrganizationMessage::LoadError(e.to_string()))
+                            }
+                        },
+                    );
                 }
-                Err(errors) => return AppState::set_validation_status_message(errors),
+                Err(errors) => return ReadyState::set_validation_status_message(errors),
             },
             OrganizationMessage::CreateSuccess => {
                 self.organizations.clear_entity_state();
@@ -374,27 +326,19 @@ impl AppState {
                 );
             }
             OrganizationMessage::Load(id) => {
-                if let Some(service) = &self.organization_service {
-                    let service = service.clone();
-                    return Task::perform(
-                        async move { service.get_organization_by_id(id).await },
-                        |result| match result {
-                            Ok(Some(organization)) => {
-                                Message::Organization(OrganizationMessage::Loaded(organization))
-                            }
-                            Ok(None) => Message::Organization(OrganizationMessage::NotFound),
-                            Err(e) => {
-                                Message::Organization(OrganizationMessage::LoadError(e.to_string()))
-                            }
-                        },
-                    );
-                } else {
-                    return Task::done(Message::Organization(OrganizationMessage::GetAll)).chain(
-                        Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Service not initialized".to_string(),
-                        ))),
-                    );
-                }
+                let service = self.organization_service.clone();
+                return Task::perform(
+                    async move { service.get_organization_by_id(id).await },
+                    |result| match result {
+                        Ok(Some(organization)) => {
+                            Message::Organization(OrganizationMessage::Loaded(organization))
+                        }
+                        Ok(None) => Message::Organization(OrganizationMessage::NotFound),
+                        Err(e) => {
+                            Message::Organization(OrganizationMessage::LoadError(e.to_string()))
+                        }
+                    },
+                );
             }
             OrganizationMessage::Loaded(organization) => {
                 self.organizations.set_current(organization);
@@ -407,25 +351,19 @@ impl AppState {
             }
             OrganizationMessage::Update => match self.organizations.current_mut().validate() {
                 Ok(()) => {
-                    if let Some(service) = &self.organization_service {
-                        let service = service.clone();
-                        let organization_to_update = self.organizations.current().clone();
-                        return Task::perform(
-                            async move { service.update_organization(organization_to_update).await },
-                            |result| match result {
-                                Ok(_) => Message::Organization(OrganizationMessage::UpdateSuccess),
-                                Err(e) => Message::Organization(OrganizationMessage::LoadError(
-                                    e.to_string(),
-                                )),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Service not initalized".to_string(),
-                        )));
-                    }
+                    let service = self.organization_service.clone();
+                    let organization_to_update = self.organizations.current().clone();
+                    return Task::perform(
+                        async move { service.update_organization(organization_to_update).await },
+                        |result| match result {
+                            Ok(_) => Message::Organization(OrganizationMessage::UpdateSuccess),
+                            Err(e) => {
+                                Message::Organization(OrganizationMessage::LoadError(e.to_string()))
+                            }
+                        },
+                    );
                 }
-                Err(errors) => return AppState::set_validation_status_message(errors),
+                Err(errors) => return ReadyState::set_validation_status_message(errors),
             },
             OrganizationMessage::UpdateSuccess => {
                 self.organizations.clear_entity_state();
@@ -436,20 +374,14 @@ impl AppState {
                 );
             }
             OrganizationMessage::Delete(id) => {
-                if let Some(service) = &self.organization_service {
-                    let service = service.clone();
-                    return Task::perform(
-                        async move { service.delete_organization(id).await },
-                        |result| match result {
-                            Ok(()) => Message::Organization(OrganizationMessage::DeleteSuccess),
-                            Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
-                        },
-                    );
-                } else {
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Service not initialized".to_string(),
-                    )));
-                }
+                let service = self.organization_service.clone();
+                return Task::perform(
+                    async move { service.delete_organization(id).await },
+                    |result| match result {
+                        Ok(()) => Message::Organization(OrganizationMessage::DeleteSuccess),
+                        Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                    },
+                );
             }
             OrganizationMessage::DeleteSuccess => {
                 self.organizations.clear_entity_state();
@@ -497,22 +429,16 @@ impl AppState {
             UserMessage::Create => match self.users.current_mut().validate() {
                 Ok(()) => {
                     let user_to_create = self.users.current().clone();
-                    if let Some(service) = &self.user_service {
-                        let service = service.clone();
-                        return Task::perform(
-                            async move { service.create_user(user_to_create).await },
-                            |result| match result {
-                                Ok(_) => Message::User(UserMessage::CreateSuccess),
-                                Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Service not initialized".to_string(),
-                        )));
-                    }
+                    let service = self.user_service.clone();
+                    return Task::perform(
+                        async move { service.create_user(user_to_create).await },
+                        |result| match result {
+                            Ok(_) => Message::User(UserMessage::CreateSuccess),
+                            Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
+                        },
+                    );
                 }
-                Err(errors) => return AppState::set_validation_status_message(errors),
+                Err(errors) => return ReadyState::set_validation_status_message(errors),
             },
             UserMessage::CreateSuccess => {
                 self.users.clear_entity_state();
@@ -522,23 +448,17 @@ impl AppState {
             }
             UserMessage::Update => match self.users.current_mut().validate() {
                 Ok(()) => {
-                    if let Some(service) = &self.user_service {
-                        let service = service.clone();
-                        let user = self.users.current().clone();
-                        return Task::perform(
-                            async move { service.update_user(user).await },
-                            |result| match result {
-                                Ok(()) => Message::User(UserMessage::UpdateSuccess),
-                                Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
-                            },
-                        );
-                    } else {
-                        return Task::done(Message::App(AppMessage::SetStatusMessage(
-                            "Service not initialized".to_string(),
-                        )));
-                    }
+                    let service = self.user_service.clone();
+                    let user = self.users.current().clone();
+                    return Task::perform(
+                        async move { service.update_user(user).await },
+                        |result| match result {
+                            Ok(()) => Message::User(UserMessage::UpdateSuccess),
+                            Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
+                        },
+                    );
                 }
-                Err(errors) => return AppState::set_validation_status_message(errors),
+                Err(errors) => return ReadyState::set_validation_status_message(errors),
             },
             UserMessage::UpdateSuccess => {
                 self.users.clear_entity_state();
@@ -547,19 +467,13 @@ impl AppState {
                 ));
             }
             UserMessage::Delete(id) => {
-                if let Some(service) = &self.user_service {
-                    let service = service.clone();
-                    return Task::perform(async move { service.delete_user(id).await }, |result| {
-                        match result {
-                            Ok(()) => Message::User(UserMessage::DeleteSuccess),
-                            Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
-                        }
-                    });
-                } else {
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "Service not initialized".to_string(),
-                    )));
-                }
+                let service = self.user_service.clone();
+                return Task::perform(async move { service.delete_user(id).await }, |result| {
+                    match result {
+                        Ok(()) => Message::User(UserMessage::DeleteSuccess),
+                        Err(e) => Message::App(AppMessage::SetStatusMessage(e.to_string())),
+                    }
+                });
             }
             UserMessage::DeleteSuccess => {
                 self.users.clear_entity_state();
@@ -568,21 +482,14 @@ impl AppState {
                 ));
             }
             UserMessage::Load(id) => {
-                if let Some(service) = &self.user_service {
-                    let service = service.clone();
-                    return Task::perform(
-                        async move { service.get_user_by_id(id).await },
-                        |result| match result {
-                            Ok(Some(user)) => Message::User(UserMessage::Loaded(user)),
-                            Ok(None) => Message::User(UserMessage::NotFound),
-                            Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
-                        },
-                    );
-                } else {
-                    return Task::done(Message::App(AppMessage::SetStatusMessage(
-                        "UserService not initialized".to_string(),
-                    )));
-                }
+                let service = self.user_service.clone();
+                return Task::perform(async move { service.get_user_by_id(id).await }, |result| {
+                    match result {
+                        Ok(Some(user)) => Message::User(UserMessage::Loaded(user)),
+                        Ok(None) => Message::User(UserMessage::NotFound),
+                        Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
+                    }
+                });
             }
             UserMessage::Loaded(user) => {
                 self.users.set_current(user);
@@ -605,15 +512,13 @@ impl AppState {
                 ))));
             }
             UserMessage::GetAll => {
-                if let Some(service) = &self.user_service {
-                    let service = service.clone();
-                    return Task::perform(async move { service.get_all_users().await }, |result| {
-                        match result {
-                            Ok(users) => Message::User(UserMessage::SetAll(users)),
-                            Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
-                        }
-                    });
-                }
+                let service = self.user_service.clone();
+                return Task::perform(async move { service.get_all_users().await }, |result| {
+                    match result {
+                        Ok(users) => Message::User(UserMessage::SetAll(users)),
+                        Err(e) => Message::User(UserMessage::LoadError(e.to_string())),
+                    }
+                });
             }
             UserMessage::SetAll(users) => {
                 self.users.set_list(users);
@@ -621,7 +526,9 @@ impl AppState {
         }
         Task::none()
     }
+}
 
+impl ReadyState {
     pub fn get_job_name(&self, job_id: i64) -> String {
         self.jobs
             .list()
@@ -651,5 +558,52 @@ impl AppState {
                 .collect::<Vec<_>>()
                 .join("\n")
         ))));
+    }
+
+    pub fn status_message(&self) -> &str {
+        &self.status_message
+    }
+    pub fn set_status_message(&mut self, message: String) {
+        self.status_message = message;
+    }
+
+    pub fn current_page(&self) -> Page {
+        self.current_page
+    }
+
+    pub fn set_current_page(&mut self, page: Page) {
+        match page {
+            Page::User => {
+                self.users.clear_entity_state();
+                self.current_page = Page::User;
+            }
+            Page::Job => {
+                self.jobs.clear_entity_state();
+                self.current_page = Page::Job;
+            }
+            Page::Organization => {
+                self.organizations.clear_entity_state();
+                self.current_page = Page::Organization;
+            }
+            Page::Settings => {
+                self.current_page = Page::Settings;
+            }
+        }
+    }
+
+    pub fn get_job_entity_state(&self) -> &EntityState<Job> {
+        &self.jobs
+    }
+
+    pub fn get_user_entity_state(&self) -> &EntityState<User> {
+        &self.users
+    }
+
+    pub fn get_organization_entity_state(&self) -> &EntityState<Organization> {
+        &self.organizations
+    }
+
+    pub fn get_theme(&self) -> &Theme {
+        &self.theme
     }
 }

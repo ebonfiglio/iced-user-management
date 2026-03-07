@@ -72,9 +72,6 @@ impl Entity for Job {
             _ => {}
         }
     }
-    fn clear_errors(&mut self) {
-        self.errors.clear();
-    }
 }
 
 impl std::fmt::Display for Job {

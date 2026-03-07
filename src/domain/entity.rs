@@ -8,5 +8,4 @@ pub trait Entity: Clone + Default + std::fmt::Debug {
     fn errors(&self) -> &HashMap<&'static str, &'static str>;
     fn validate(&mut self) -> Result<(), &HashMap<&'static str, &'static str>>;
     fn validate_property(&mut self, property: &str);
-    fn clear_errors(&mut self);
 }

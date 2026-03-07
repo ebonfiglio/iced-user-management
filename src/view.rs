@@ -5,7 +5,7 @@ use iced::{
     Border, Color, Element, Fill, FillPortion, Length, Theme,
 };
 
-use crate::app::AppState;
+use crate::app::{AppState, ReadyState};
 use crate::domain::Entity;
 use crate::message::{
     app_message::AppMessage, job_message::JobMessage, organization_message::OrganizationMessage,
@@ -14,6 +14,16 @@ use crate::message::{
 use crate::page::Page;
 
 impl AppState {
+    pub fn view(&self) -> Element<'_, Message> {
+        match self {
+            AppState::Loading => text("Loading...").into(),
+            AppState::Ready(state) => state.view(),
+            AppState::Error(err) => text(format!("Failed to initialize: {err}")).into(),
+        }
+    }
+}
+
+impl ReadyState {
     pub fn view(&self) -> Element<'_, Message> {
         let navigation = container(
             column![
@@ -94,9 +104,9 @@ impl AppState {
             text("Name").width(Length::FillPortion(2)),
             text("Action")
         ];
-        let job_list = scrollable(self.get_job_entity_state().list().iter().enumerate().fold(
+        let job_list = scrollable(self.get_job_entity_state().list().iter().fold(
             column![header_row].spacing(2),
-            |col, (_, job)| {
+            |col, job| {
                 col.push(
                     row![
                         text(job.id()).width(Length::FillPortion(1)),
@@ -153,12 +163,10 @@ impl AppState {
             text("Name").width(Length::FillPortion(2)),
             text("Action")
         ];
-        let organization_list = scrollable(
-            self.get_organization_entity_state()
-                .list()
-                .iter()
-                .enumerate()
-                .fold(column![header_row].spacing(2), |col, (_, organization)| {
+        let organization_list =
+            scrollable(self.get_organization_entity_state().list().iter().fold(
+                column![header_row].spacing(2),
+                |col, organization| {
                     col.push(
                         row![
                             text(organization.id()).width(Length::FillPortion(1)),
@@ -177,9 +185,9 @@ impl AppState {
                         .spacing(10)
                         .padding(5),
                     )
-                }),
-        )
-        .height(Length::Fill);
+                },
+            ))
+            .height(Length::Fill);
 
         container(
             column![
@@ -261,9 +269,9 @@ impl AppState {
             text("Organization").width(Length::FillPortion(2)),
             text("Action").width(Length::FillPortion(2)),
         ];
-        let user_list = scrollable(self.get_user_entity_state().list().iter().enumerate().fold(
+        let user_list = scrollable(self.get_user_entity_state().list().iter().fold(
             column![header_row].spacing(2),
-            |col, (_, user)| {
+            |col, user| {
                 let job_name = self.get_job_name(user.job_id());
                 let organization_name = self.get_organization_name(user.organization_id());
 

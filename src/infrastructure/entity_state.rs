@@ -47,6 +47,5 @@ impl<T: Entity> EntityState<T> {
     pub fn clear_entity_state(&mut self) {
         self.current = T::default();
         self.is_edit = false;
-        self.current.clear_errors();
     }
 }

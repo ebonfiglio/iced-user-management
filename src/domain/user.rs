@@ -110,7 +110,4 @@ impl Entity for User {
             _ => {}
         }
     }
-    fn clear_errors(&mut self) {
-        self.errors.clear();
-    }
 }
