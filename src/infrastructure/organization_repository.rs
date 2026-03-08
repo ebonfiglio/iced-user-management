@@ -31,12 +31,7 @@ impl OrganizationRepository for OrganizationSqliteRepository {
         .await
         .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
-        Ok(row.map(|r| {
-            let mut org = Organization::new();
-            org.set_id(r.id);
-            org.set_name(r.name);
-            org
-        }))
+        Ok(row.map(|r| Organization::with(r.id, r.name)))
     }
     async fn find_all(&self) -> Result<Vec<Organization>, RepositoryError> {
         let rows = sqlx::query!(
@@ -52,12 +47,7 @@ impl OrganizationRepository for OrganizationSqliteRepository {
 
         Ok(rows
             .into_iter()
-            .map(|r| {
-                let mut org = Organization::new();
-                org.set_id(r.id.unwrap_or(0));
-                org.set_name(r.name);
-                org
-            })
+            .map(|r| Organization::with(r.id.unwrap_or(0), r.name))
             .collect())
     }
 

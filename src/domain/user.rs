@@ -31,6 +31,16 @@ impl User {
     pub fn organization_id(&self) -> i64 {
         self.organization_id
     }
+
+    pub fn with(id: i64, name: String, job_id: i64, organization_id: i64) -> Self {
+        Self {
+            id,
+            name,
+            job_id,
+            organization_id,
+            errors: HashMap::new(),
+        }
+    }
 }
 
 impl Entity for User {

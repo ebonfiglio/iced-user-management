@@ -13,6 +13,14 @@ impl Job {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn with(id: i64, name: String) -> Self {
+        Self {
+            id,
+            name,
+            errors: HashMap::new(),
+        }
+    }
 }
 
 impl Entity for Job {

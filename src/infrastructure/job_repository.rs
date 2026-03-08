@@ -30,12 +30,7 @@ impl JobRepository for JobSqliteRepository {
         .await
         .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
-        Ok(row.map(|r| {
-            let mut job = Job::new();
-            job.set_id(r.id);
-            job.set_name(r.name);
-            job
-        }))
+        Ok(row.map(|r| Job::with(r.id, r.name)))
     }
     async fn find_all(&self) -> Result<Vec<Job>, RepositoryError> {
         let rows = sqlx::query!(
@@ -51,12 +46,7 @@ impl JobRepository for JobSqliteRepository {
 
         Ok(rows
             .into_iter()
-            .map(|r| {
-                let mut job = Job::new();
-                job.set_id(r.id.unwrap_or(0));
-                job.set_name(r.name);
-                job
-            })
+            .map(|r| Job::with(r.id.unwrap_or(0), r.name))
             .collect())
     }
 

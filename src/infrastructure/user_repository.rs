@@ -30,14 +30,7 @@ impl UserRepository for UserSqliteRepository {
         .await
         .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
-        Ok(row.map(|r| {
-            let mut user = User::new();
-            user.set_id(r.id);
-            user.set_name(r.name);
-            user.set_job_id(r.job_id);
-            user.set_organization_id(r.organization_id);
-            user
-        }))
+        Ok(row.map(|r| User::with(r.id, r.name, r.job_id, r.organization_id)))
     }
 
     async fn find_all(&self) -> Result<Vec<User>, RepositoryError> {
@@ -54,14 +47,7 @@ impl UserRepository for UserSqliteRepository {
 
         Ok(rows
             .into_iter()
-            .map(|r| {
-                let mut user = User::new();
-                user.set_id(r.id);
-                user.set_name(r.name);
-                user.set_job_id(r.job_id);
-                user.set_organization_id(r.organization_id);
-                user
-            })
+            .map(|r| User::with(r.id, r.name, r.job_id, r.organization_id))
             .collect())
     }
 
