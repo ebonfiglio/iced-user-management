@@ -97,9 +97,7 @@ impl AppState {
                 }
             }
             AppState::Ready(ready_state) => ready_state.handle_message(message),
-            AppState::Error(err) => Task::done(Message::App(AppMessage::InitializationError(
-                err.to_string(),
-            ))),
+            AppState::Error(_) => Task::none(),
         }
     }
     pub fn get_theme(&self) -> &Theme {
